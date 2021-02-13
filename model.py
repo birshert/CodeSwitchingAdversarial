@@ -7,12 +7,30 @@ from transformers import (
     PretrainedConfig,
     XLMRobertaForMaskedLM,
     XLMRobertaModel,
-    XLMRobertaTokenizer,
+    XLMRobertaTokenizerFast,
 )
 
 
 def is_cyrillic(s: str):
     return bool(regex.search(r'\p{IsCyrillic}', s))
+
+
+def freeze_linear_params(layer, weight_indices, bias_indices=None):
+    def freezing_hook_weight_full(grad):
+        return grad * weight_multiplier
+
+    def freezing_hook_bias_full(grad):
+        return grad * bias_multiplier
+
+    weight_multiplier = torch.ones(layer.weight.shape[0]).to(layer.weight.device)
+    weight_multiplier[weight_indices] = 0
+    weight_multiplier = weight_multiplier.view(-1, 1)
+
+    bias_multiplier = torch.ones(layer.weight.shape[0]).to(layer.bias.device)
+    bias_multiplier[bias_indices] = 0
+
+    layer.weight.register_hook(freezing_hook_weight_full)
+    layer.bias.register_hook(freezing_hook_bias_full)
 
 
 class Model(nn.Module):
@@ -30,7 +48,7 @@ class Model(nn.Module):
         self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
         self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
 
-        self.tokenizer = XLMRobertaTokenizer.from_pretrained('models/tokenizer')
+        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained('models/tokenizer')
         self.vocab_len = len(self.tokenizer.get_vocab())
 
         self.emb_model.eval()
@@ -60,12 +78,8 @@ class Model(nn.Module):
 
     @torch.no_grad()
     def set_nonrussian_grad_zero(self):
-        def backward_hook(self_, grad_input, grad_output):
-            print(list(map(lambda x: x.shape, grad_input)))
-            print(list(map(lambda x: x.shape, grad_output)))
-            print(self_)
-
-        self.mlm_model.lm_head.decoder.register_backward_hook(backward_hook)
+        indices = torch.arange(0, len(self.russian_tokens_mask))[~self.russian_tokens_mask]
+        freeze_linear_params(self.mlm_model.lm_head.decoder, indices, indices)
 
     def to(self, device: torch.device):
         self.mlm_model.to(device)

@@ -1,4 +1,5 @@
 import json
+import numpy as np
 
 import torch
 from sklearn.model_selection import train_test_split
@@ -68,7 +69,7 @@ def main():
     model.load_models()
 
     model.to(device)
-    # model.set_nonrussian_grad_zero()
+    model.set_nonrussian_grad_zero()
     model.russian_forward()
 
     with open('data/dstc_utterances.json') as f:
@@ -80,12 +81,12 @@ def main():
     dataset_train = CustomDataset(texts_train)
     dataset_test = CustomDataset(texts_test)
 
-    dataloader_train = DataLoader(dataset_train, batch_size=1, shuffle=True, num_workers=2, pin_memory=False)
-    dataloader_test = DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=2, pin_memory=False)
+    dataloader_train = DataLoader(dataset_train, batch_size=16, shuffle=True, num_workers=8, pin_memory=False)
+    dataloader_test = DataLoader(dataset_test, batch_size=16, shuffle=False, num_workers=8, pin_memory=False)
 
     optimizer = Adam(model.parameters(), lr=1e-4)
 
-    for i in range(3):
+    for i in range(100):
         loss_train = train(model, dataloader_train, optimizer)
 
         loss_test = evaluate(model, dataloader_test)
