@@ -7,9 +7,8 @@ from transformers import (
     PretrainedConfig,
     XLMRobertaForMaskedLM,
     XLMRobertaModel,
-    XLMRobertaTokenizerFast,
+    XLMRobertaTokenizer,
 )
-from itertools import chain
 
 
 def is_cyrillic(s: str):
@@ -31,7 +30,7 @@ class Model(nn.Module):
         self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
         self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
 
-        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained('models/tokenizer')
+        self.tokenizer = XLMRobertaTokenizer.from_pretrained('models/tokenizer')
         self.vocab_len = len(self.tokenizer.get_vocab())
 
         self.emb_model.eval()
@@ -61,16 +60,12 @@ class Model(nn.Module):
 
     @torch.no_grad()
     def set_nonrussian_grad_zero(self):
-        def freezing_hook_weight_full(grad):
-            grad[~self.russian_tokens_mask] = 0
-            return grad
+        def backward_hook(self_, grad_input, grad_output):
+            print(list(map(lambda x: x.shape, grad_input)))
+            print(list(map(lambda x: x.shape, grad_output)))
+            print(self_)
 
-        def freezing_hook_bias_full(grad):
-            grad[~self.russian_tokens_mask] = 0
-            return grad
-
-        self.mlm_model.lm_head.decoder.weight.register_hook(freezing_hook_weight_full)
-        self.mlm_model.lm_head.decoder.bias.register_hook(freezing_hook_bias_full)
+        self.mlm_model.lm_head.decoder.register_backward_hook(backward_hook)
 
     def to(self, device: torch.device):
         self.mlm_model.to(device)

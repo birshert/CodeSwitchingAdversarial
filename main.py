@@ -68,7 +68,7 @@ def main():
     model.load_models()
 
     model.to(device)
-    model.set_nonrussian_grad_zero()
+    # model.set_nonrussian_grad_zero()
     model.russian_forward()
 
     with open('data/dstc_utterances.json') as f:
@@ -80,8 +80,8 @@ def main():
     dataset_train = CustomDataset(texts_train)
     dataset_test = CustomDataset(texts_test)
 
-    dataloader_train = DataLoader(dataset_train, batch_size=2, shuffle=True, num_workers=2, pin_memory=True)
-    dataloader_test = DataLoader(dataset_test, batch_size=2, shuffle=False, num_workers=2, pin_memory=True)
+    dataloader_train = DataLoader(dataset_train, batch_size=1, shuffle=True, num_workers=2, pin_memory=False)
+    dataloader_test = DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=2, pin_memory=False)
 
     optimizer = Adam(model.parameters(), lr=1e-4)
 
