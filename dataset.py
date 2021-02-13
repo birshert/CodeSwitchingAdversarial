@@ -4,11 +4,15 @@ import numpy as np
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize
 from torch.utils.data import Dataset
+from transformers import (
+    XLMRobertaTokenizerFast,
+)
 
 
 class CustomDataset(Dataset, metaclass=ABCMeta):
     """
-    Returns a sentence and a masked sentence (currently masking random noun from the sentence).
+    Returns tokenized sentence and masked sentence (currently masking random noun from the sentence), using XLM-R
+    tokenizer.
     """
 
     def __init__(self, sentences):
@@ -20,7 +24,7 @@ class CustomDataset(Dataset, metaclass=ABCMeta):
             list(map(lambda x: x[1] == 'NN', pos_tag(sentence))) for sentence in self.sentences
         ]
 
-        self.mask_token = '<mask>'
+        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained('models/tokenizer')
 
     def __len__(self):
         return len(self.sentences)
@@ -28,13 +32,17 @@ class CustomDataset(Dataset, metaclass=ABCMeta):
     def __getitem__(self, item: int):
         sentence = ' '.join(self.sentences[item])
 
-        word_to_mask = np.random.choice(np.nonzero(self.noun_masks[item])[0])
+        if np.sum(self.noun_masks[item]):
+            word_to_mask = np.random.choice(np.nonzero(self.noun_masks[item])[0])
 
-        masked_sentence = self.sentences[item]
-        masked_sentence[word_to_mask] = self.mask_token
-        masked_sentence = ' '.join(masked_sentence)
+            masked_sentence = self.sentences[item]
+            masked_sentence[word_to_mask] = self.tokenizer.mask_token
+            masked_sentence = ' '.join(masked_sentence)
+
+        else:
+            masked_sentence = ' '.join(self.sentences[item])
 
         return {
-            'sentence': sentence,
-            'masked_sentence': masked_sentence
+            'sentence': self.tokenizer.encode(sentence, return_tensors='pt', max_length=50, padding='max_length').flatten(),
+            'masked_sentence': self.tokenizer.encode(masked_sentence, return_tensors='pt', max_length=50, padding='max_length').flatten()
         }
