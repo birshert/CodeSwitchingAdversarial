@@ -30,11 +30,7 @@ class Model(nn.Module):
         self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
         self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
 
-        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(
-            self.mlm_model_name,
-            cache_dir='models/tokenizer/',
-            local_files_only=True
-        )
+        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(self.mlm_model_name)
         self.vocab_len = len(self.tokenizer.get_vocab())
 
         self.emb_model.eval()
@@ -62,6 +58,12 @@ class Model(nn.Module):
     def russian_forward(self):
         self.mlm_model.lm_head.decoder.weight[~self.russian_tokens_mask] = 0
         self.mlm_model.lm_head.decoder.bias[~self.russian_tokens_mask] = 0
+
+    @torch.no_grad()
+    def set_nonrussian_grad_zero(self):
+        gradient_mask = torch.zeros_like(self.mlm_model.lm_head.decoder.weight, device=self.mlm_model.device)
+        gradient_mask[self.russian_tokens_mask] = 1.0
+        self.mlm_model.lm_head.decoder.weight.register_hook(lambda grad: grad.mul_(gradient_mask))
 
     def to(self, device: torch.device):
         self.mlm_model.to(device)
