@@ -1,5 +1,5 @@
 import json
-import numpy as np
+import multiprocessing as mp
 
 import torch
 from sklearn.model_selection import train_test_split
@@ -21,6 +21,8 @@ def train(model, dataloader, optimizer):
     total_loss = 0
 
     for batch in tqdm(dataloader, desc='TRAINING'):
+        model.russian_forward()
+
         batch = {key: batch[key].to(device) for key in batch.keys()}
 
         optimizer.zero_grad()
@@ -69,8 +71,6 @@ def main():
     model.load_models()
 
     model.to(device)
-    model.set_nonrussian_grad_zero()
-    model.russian_forward()
 
     with open('data/dstc_utterances.json') as f:
         data = json.load(f)
@@ -81,10 +81,12 @@ def main():
     dataset_train = CustomDataset(texts_train)
     dataset_test = CustomDataset(texts_test)
 
-    dataloader_train = DataLoader(dataset_train, batch_size=16, shuffle=True, num_workers=8, pin_memory=False)
-    dataloader_test = DataLoader(dataset_test, batch_size=16, shuffle=False, num_workers=8, pin_memory=False)
+    dataloader_train = DataLoader(dataset_train, batch_size=16, shuffle=True, num_workers=mp.cpu_count(),
+                                  pin_memory=True)
+    dataloader_test = DataLoader(dataset_test, batch_size=16, shuffle=False, num_workers=mp.cpu_count(),
+                                 pin_memory=True)
 
-    optimizer = Adam(model.parameters(), lr=1e-4)
+    optimizer = Adam(model.parameters(), lr=1e-3)
 
     for i in range(100):
         loss_train = train(model, dataloader_train, optimizer)

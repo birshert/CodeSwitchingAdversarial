@@ -15,24 +15,6 @@ def is_cyrillic(s: str):
     return bool(regex.search(r'\p{IsCyrillic}', s))
 
 
-def freeze_linear_params(layer, weight_indices, bias_indices=None):
-    def freezing_hook_weight_full(grad):
-        return grad * weight_multiplier
-
-    def freezing_hook_bias_full(grad):
-        return grad * bias_multiplier
-
-    weight_multiplier = torch.ones(layer.weight.shape[0]).to(layer.weight.device)
-    weight_multiplier[weight_indices] = 0
-    weight_multiplier = weight_multiplier.view(-1, 1)
-
-    bias_multiplier = torch.ones(layer.weight.shape[0]).to(layer.bias.device)
-    bias_multiplier[bias_indices] = 0
-
-    layer.weight.register_hook(freezing_hook_weight_full)
-    layer.bias.register_hook(freezing_hook_bias_full)
-
-
 class Model(nn.Module):
     """
     MLM generating a token for sentence and then another model calculating two sentences embeddings (origin and
@@ -48,7 +30,11 @@ class Model(nn.Module):
         self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
         self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
 
-        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained('models/tokenizer')
+        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(
+            self.mlm_model_name,
+            cache_dir='models/tokenizer/',
+            local_files_only=True
+        )
         self.vocab_len = len(self.tokenizer.get_vocab())
 
         self.emb_model.eval()
@@ -75,11 +61,7 @@ class Model(nn.Module):
     @torch.no_grad()
     def russian_forward(self):
         self.mlm_model.lm_head.decoder.weight[~self.russian_tokens_mask] = 0
-
-    @torch.no_grad()
-    def set_nonrussian_grad_zero(self):
-        indices = torch.arange(0, len(self.russian_tokens_mask))[~self.russian_tokens_mask]
-        freeze_linear_params(self.mlm_model.lm_head.decoder, indices, indices)
+        self.mlm_model.lm_head.decoder.bias[~self.russian_tokens_mask] = 0
 
     def to(self, device: torch.device):
         self.mlm_model.to(device)
@@ -104,7 +86,9 @@ class Model(nn.Module):
         mask_one_hot = func.gumbel_softmax(mask_token_logits, hard=True)
 
         input_embeddings = self.emb_model.embeddings.word_embeddings.weight[masked_sentence]
-        input_embeddings[masked_sentence == self.tokenizer.mask_token_id] = mask_one_hot @ self.emb_model.embeddings.word_embeddings.weight
+        input_embeddings[
+            masked_sentence == self.tokenizer.mask_token_id] = mask_one_hot @ \
+                                                               self.emb_model.embeddings.word_embeddings.weight
 
         embeddings_1 = self.emb_model.forward(inputs_embeds=input_embeddings).pooler_output
         embeddings_2 = self.emb_model(sentence).pooler_output
