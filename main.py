@@ -3,9 +3,9 @@ import multiprocessing as mp
 
 import torch
 from sklearn.model_selection import train_test_split
-from torch.optim import Adam
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import AdamW
 
 from dataset import CustomDataset
 from model import Model
@@ -21,8 +21,6 @@ def train(model, dataloader, optimizer):
     total_loss = 0
 
     for batch in tqdm(dataloader, desc='TRAINING'):
-        model.russian_forward()
-
         batch = {key: batch[key].to(device) for key in batch.keys()}
 
         optimizer.zero_grad()
@@ -72,6 +70,9 @@ def main():
 
     model.to(device)
 
+    model.russian_forward()
+    model.russian_hook()
+
     with open('data/dstc_utterances.json') as f:
         data = json.load(f)
 
@@ -81,14 +82,14 @@ def main():
     dataset_train = CustomDataset(texts_train)
     dataset_test = CustomDataset(texts_test)
 
-    dataloader_train = DataLoader(dataset_train, batch_size=16, shuffle=True, num_workers=mp.cpu_count(),
+    dataloader_train = DataLoader(dataset_train, batch_size=8, shuffle=True, num_workers=mp.cpu_count(),
                                   pin_memory=True)
-    dataloader_test = DataLoader(dataset_test, batch_size=16, shuffle=False, num_workers=mp.cpu_count(),
+    dataloader_test = DataLoader(dataset_test, batch_size=8, shuffle=False, num_workers=mp.cpu_count(),
                                  pin_memory=True)
 
-    optimizer = Adam(model.parameters(), lr=1e-3)
+    optimizer = AdamW(model.parameters(), lr=1e-3)
 
-    for i in range(100):
+    for i in range(1):
         loss_train = train(model, dataloader_train, optimizer)
 
         loss_test = evaluate(model, dataloader_test)

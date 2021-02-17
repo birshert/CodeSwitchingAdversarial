@@ -59,18 +59,22 @@ class Model(nn.Module):
         self.mlm_model.lm_head.decoder.weight[~self.russian_tokens_mask] = 0
         self.mlm_model.lm_head.decoder.bias[~self.russian_tokens_mask] = 0
 
-    @torch.no_grad()
-    def set_nonrussian_grad_zero(self):
-        gradient_mask = torch.zeros_like(self.mlm_model.lm_head.decoder.weight, device=self.mlm_model.device)
-        gradient_mask[self.russian_tokens_mask] = 1.0
-        self.mlm_model.lm_head.decoder.weight.register_hook(lambda grad: grad.mul_(gradient_mask))
+    def russian_hook(self):
+        weight_multi = torch.zeros_like(self.mlm_model.lm_head.decoder.weight, device=self.mlm_model.device)
+        weight_multi[self.russian_tokens_mask] = 1.0
+        self.mlm_model.lm_head.decoder.weight.register_hook(lambda grad: grad.mul_(weight_multi))
+
+        bias_multi = torch.zeros_like(self.mlm_model.lm_head.decoder.bias, device=self.mlm_model.device)
+        bias_multi[self.russian_tokens_mask] = 1.0
+        self.mlm_model.lm_head.decoder.bias.register_hook(lambda grad: grad.mul_(bias_multi))
 
     def to(self, device: torch.device):
         self.mlm_model.to(device)
         self.emb_model.to(device)
 
     def parameters(self, recurse: bool = True):
-        return self.mlm_model.parameters()
+        yield from self.mlm_model.roberta.parameters()
+        yield from self.mlm_model.lm_head.parameters()
 
     def train(self, mode: bool = True):
         self.mlm_model.train()
