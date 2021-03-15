@@ -1,0 +1,135 @@
+%! Author = lesha
+%! Date = 15.03.2021
+
+% Preamble
+\documentclass[a4paper,14pt]{extarticle}
+
+% Packages
+\usepackage{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{colortbl}
+\usepackage{tikz}
+\usepackage{pgf}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage[colorlinks, linkcolor=blue, urlcolor=blue]{hyperref}
+\usepackage{indentfirst}
+
+% Misc
+\makeatletter
+\renewcommand{\@biblabel}[1]{#1.}  % Заменяем библиографию с квадратных скобок на точку:
+\makeatother
+
+\geometry{left=2.5cm}  % левое поле
+\geometry{right=1.5cm}  % правое поле
+\geometry{top=1.5cm}  % верхнее поле
+\geometry{bottom=1.5cm}  % нижнее поле
+\renewcommand{\baselinestretch}{1.5}  % междустрочный интервал
+
+\newcommand{\bibref}[3]{\hyperlink{#1}{#2 (#3)}} % biblabel, authors, year
+
+\renewcommand{\theenumi}{\arabic{enumi}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\labelenumi}{\arabic{enumi}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\theenumii}{.\arabic{enumii}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\labelenumii}{\arabic{enumi}.\arabic{enumii}.}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\theenumiii}{.\arabic{enumiii}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\labelenumiii}{\arabic{enumi}.\arabic{enumii}.\arabic{enumiii}.}  % Меняем везде перечисления на цифра.цифра
+
+% Document
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%
+% ТИТУЛЬНЫЙ ЛИСТ %
+%%%%%%%%%%%%%%%%%%
+\input{title}
+%%%%%%%%%%%%%%%%%%
+% ТИТУЛЬНЫЙ ЛИСТ %
+%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%
+%   ОГЛАВЛЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+{
+	\hypersetup{linkcolor=black}
+    \tableofcontents
+}
+%%%%%%%%%%%%%%%%%%
+%   ОГЛАВЛЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%
+%    АБСТРАКТ    %
+%%%%%%%%%%%%%%%%%%
+\input{abstract}
+%%%%%%%%%%%%%%%%%%
+%    АБСТРАКТ    %
+%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%
+%    ВВЕДЕНИЕ    %
+%%%%%%%%%%%%%%%%%%
+\section{Введение}
+\input{introduction}
+%%%%%%%%%%%%%%%%%%
+%    ВВЕДЕНИЕ    %
+%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%
+%   ОБЗОР ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+\section{Обзор литературы}
+\input{literature}
+%%%%%%%%%%%%%%%%%%
+%   ОБЗОР ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%
+% ОСНОВНАЯ ЧАСТЬ %
+%%%%%%%%%%%%%%%%%%
+\section{Основная часть}
+\input{body}
+%%%%%%%%%%%%%%%%%%
+% ОСНОВНАЯ ЧАСТЬ %
+%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%
+%   ЗАКЛЮЧЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+\section{Заключение}
+\input{conclusion}
+%%%%%%%%%%%%%%%%%%
+%   ЗАКЛЮЧЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%
+%  СПИСОК ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+\section{Список литературы}
+\input{bibliography}
+%%%%%%%%%%%%%%%%%%
+%  СПИСОК ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+
+\end{document}
