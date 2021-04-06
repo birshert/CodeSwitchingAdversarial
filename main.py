@@ -1,6 +1,7 @@
 import json
 
 import torch
+import wandb
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from transformers import AdamW
@@ -13,27 +14,6 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 SEED = 1234
 
 
-def train(model, dataloader, optimizer):
-    model.train()
-
-    total_loss = 0
-
-    for batch in tqdm(dataloader, desc='TRAINING'):
-        batch = {key: batch[key].to(device) for key in batch.keys()}
-
-        optimizer.zero_grad()
-
-        output = model(**batch)
-
-        total_loss += output.item()
-
-        output.backward()
-
-        optimizer.step()
-
-    return total_loss / len(dataloader)
-
-
 @torch.no_grad()
 def evaluate(model, dataloader):
     model.eval()
@@ -41,7 +21,7 @@ def evaluate(model, dataloader):
     total_loss = 0
 
     for batch in tqdm(dataloader, desc='EVALUATING'):
-        batch = {key: batch[key].to(device) for key in batch.keys()}
+        batch = {key: batch[key].to(device, non_blocking=True) for key in batch.keys()}
 
         output = model(**batch)
 
@@ -60,35 +40,79 @@ def _set_seed(seed):
 
 def main():
     _set_seed(SEED)
-
     print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
 
+    log = True
+
+    wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
+
+    wandb.config.update(
+        {
+            'num_epoches': 1,
+            'log_interval': 50,
+            'log_examples': 500,
+            'learning_rate': 1e-4,
+            'batch_size': 1000
+        }
+    )
+
     model = Model()
-
-    model.to(device)
-
+    model.to(device, non_blocking=True)
     model.russian_forward()
-    model.russian_hook()
 
     with open('data/dstc_utterances.json') as f:
         data = json.load(f)
 
     texts, _ = zip(*((elem['text'], elem['intent']) for elem in data))
-    texts_train, texts_test = train_test_split(texts, test_size=0.1, random_state=SEED)
+    texts_train, texts_valid = train_test_split(texts, test_size=0.02, random_state=SEED)
 
-    dataloader_train = CustomDataloader(texts_train)
-    dataloader_test = CustomDataloader(texts_test, shuffle=False)
+    train_loader = CustomDataloader(texts_train, batch_size=wandb.config['batch_size'])
+    valid_loader = CustomDataloader(texts_valid, batch_size=wandb.config['batch_size'], shuffle=False)
 
-    optimizer = AdamW(model.parameters(), lr=1e-3)
+    optimizer = AdamW(model.parameters(), lr=wandb.config['learning_rate'])
 
-    for i in range(1):
-        loss_train = train(model, dataloader_train, optimizer)
+    num_epoches = wandb.config['num_epoches']
+    log_interval = wandb.config['log_interval']
+    log_interval_examples = wandb.config['log_examples']
 
-        loss_test = evaluate(model, dataloader_test)
+    with tqdm(total=num_epoches * len(train_loader)) as progress_bar:
+        for epoch in range(num_epoches):
+            for i, batch in enumerate(train_loader):
+                progress_bar.set_description(
+                    f'EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len(train_loader)}]'
+                )
 
-        print(loss_train, loss_test)
+                batch = {key: batch[key].to(device) for key in batch.keys()}
 
-    model.save()
+                optimizer.zero_grad()
+
+                loss = model(**batch)
+
+                loss.backward()
+
+                optimizer.step()
+
+                progress_bar.update()
+
+                if log and (i + epoch * len(train_loader)) % log_interval == 0:
+                    valid_loss = evaluate(model, valid_loader)
+                    wandb.log(
+                        {
+                            'Semantic similarity loss [TRAIN]': loss.item(),
+                            'Semantic similarity loss [VALID]': valid_loss.item(),
+                        }
+                    )
+
+                # if log and (i + epoch * len(train_loader)) % log_interval_examples == 0:
+                #     wandb.log(
+                #         {
+                #             f'Image step [{(i + epoch * len(train_loader))}]': [
+                #                 wandb.Image(torch_2_image(glow.sample_fixed(64), rows=8))
+                #             ]
+                #         }
+                #     )
+
+        model.save()
 
 
 if __name__ == '__main__':

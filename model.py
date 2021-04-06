@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as func
 from transformers import (
-    PretrainedConfig,
     XLMRobertaForMaskedLM,
     XLMRobertaModel,
     XLMRobertaTokenizerFast,
@@ -25,7 +24,7 @@ class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.mlm_model_name = 'xlm-roberta-base'
-        self.emb_model_name = 'xlm-roberta-base-mean-tokens'
+        self.emb_model_name = 'sentence-transformers/xlm-r-100langs-bert-base-nli-mean-tokens'
 
         # self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
         # self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
@@ -37,7 +36,6 @@ class Model(nn.Module):
         self.vocab_len = len(self.tokenizer.get_vocab())
 
         self.emb_model.eval()
-
         for parameter in self.emb_model.parameters():
             parameter.requires_grad = False
 
@@ -71,13 +69,8 @@ class Model(nn.Module):
         bias_multi[self.russian_tokens_mask] = 1.0
         self.mlm_model.lm_head.decoder.bias.register_hook(lambda grad: grad.mul_(bias_multi))
 
-    def to(self, device: torch.device):
-        self.mlm_model.to(device)
-        self.emb_model.to(device)
-
     def parameters(self, recurse: bool = True):
-        yield from self.mlm_model.roberta.parameters()
-        yield from self.mlm_model.lm_head.parameters()
+        yield from self.mlm_model.parameters()
 
     def train(self, mode: bool = True):
         self.mlm_model.train()
@@ -95,7 +88,8 @@ class Model(nn.Module):
         one_hot = func.gumbel_softmax(mask_token_logits, hard=True, tau=1000)
 
         input_embeddings = self.emb_model.embeddings.word_embeddings.weight[masked]
-        input_embeddings[masked == self.tokenizer.mask_token_id] = one_hot @ self.emb_model.embeddings.word_embeddings.weight
+        input_embeddings[
+            masked == self.tokenizer.mask_token_id] = one_hot @ self.emb_model.embeddings.word_embeddings.weight
 
         embeddings_1 = self.emb_model.forward(inputs_embeds=input_embeddings).pooler_output
         embeddings_2 = self.emb_model(origin).pooler_output
@@ -103,4 +97,4 @@ class Model(nn.Module):
         normalized_embeddings_1 = func.normalize(embeddings_1, p=2)
         normalized_embeddings_2 = func.normalize(embeddings_2, p=2)
 
-        return -torch.mean(normalized_embeddings_1 * normalized_embeddings_2)
+        return -torch.sum(normalized_embeddings_1 * normalized_embeddings_2, dim=1).mean()
