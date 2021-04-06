@@ -47,6 +47,10 @@ class Model(nn.Module):
 
         self.russian_tokens_mask = self.russian_tokens_mask.astype(bool)
 
+    def load_pretrained(self):
+        self.mlm_model = XLMRobertaForMaskedLM.from_pretrained(self.mlm_model_name)
+        self.emb_model = XLMRobertaModel.from_pretrained('sentence-transformers/xlm-r-100langs-bert-base-nli-mean-tokens')
+
     def load(self):
         self.mlm_model.load_state_dict(torch.load(f'models/{self.mlm_model_name}.pt'))
         self.emb_model.load_state_dict(torch.load(f'models/{self.emb_model_name}.pt'))
