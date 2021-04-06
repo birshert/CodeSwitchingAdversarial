@@ -1,9 +1,12 @@
+import os
+
 import numpy as np
 import regex
 import torch
 import torch.nn as nn
 import torch.nn.functional as func
 from transformers import (
+    PretrainedConfig,
     XLMRobertaForMaskedLM,
     XLMRobertaModel,
     XLMRobertaTokenizerFast,
@@ -24,13 +27,10 @@ class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.mlm_model_name = 'xlm-roberta-base'
-        self.emb_model_name = 'sentence-transformers/xlm-r-100langs-bert-base-nli-mean-tokens'
+        self.emb_model_name = 'xlm-roberta-base-mean-tokens'
 
-        # self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
-        # self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
-
-        self.mlm_model = XLMRobertaForMaskedLM.from_pretrained(self.mlm_model_name)
-        self.emb_model = XLMRobertaModel.from_pretrained(self.emb_model_name)
+        self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
+        self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
 
         self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(self.mlm_model_name)
         self.vocab_len = len(self.tokenizer.get_vocab())
@@ -48,12 +48,15 @@ class Model(nn.Module):
         self.russian_tokens_mask = self.russian_tokens_mask.astype(bool)
 
     def load(self):
-        self.mlm_model.load_state_dict(torch.load(f'models/{self.mlm_model_name}.pth'))
-        self.emb_model.load_state_dict(torch.load(f'models/{self.emb_model_name}.pth'))
+        self.mlm_model.load_state_dict(torch.load(f'models/{self.mlm_model_name}.pt'))
+        self.emb_model.load_state_dict(torch.load(f'models/{self.emb_model_name}.pt'))
 
     def save(self):
-        torch.save(self.mlm_model.state_dict(), f'models/{self.mlm_model_name}_.pth')
-        torch.save(self.emb_model.state_dict(), f'models/{self.emb_model_name}_.pth')
+        if not os.path.exists('models'):
+            os.makedirs('models')
+
+        torch.save(self.mlm_model.state_dict(), f'models/{self.mlm_model_name}.pt')
+        torch.save(self.emb_model.state_dict(), f'models/{self.emb_model_name}.pt')
 
     @torch.no_grad()
     def russian_forward(self):
