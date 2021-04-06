@@ -20,7 +20,7 @@ def evaluate(model, dataloader):
 
     total_loss = 0
 
-    for batch in tqdm(dataloader, desc='EVALUATING'):
+    for batch in dataloader:
         batch = {key: batch[key].to(device, non_blocking=True) for key in batch.keys()}
 
         output = model(**batch)
@@ -64,7 +64,7 @@ def main():
         data = json.load(f)
 
     texts, _ = zip(*((elem['text'], elem['intent']) for elem in data))
-    texts_train, texts_valid = train_test_split(texts, test_size=0.02, random_state=SEED)
+    texts_train, texts_valid = train_test_split(texts, test_size=0.01, random_state=SEED)
 
     train_loader = CustomDataloader(texts_train, batch_size=wandb.config['batch_size'])
     valid_loader = CustomDataloader(texts_valid, batch_size=wandb.config['batch_size'], shuffle=False)
@@ -75,11 +75,16 @@ def main():
     log_interval = wandb.config['log_interval']
     log_interval_examples = wandb.config['log_examples']
 
-    with tqdm(total=num_epoches * len(train_loader)) as progress_bar:
+    len_train_loader = 0
+
+    for _ in train_loader:
+        len_train_loader += 1
+
+    with tqdm(total=num_epoches * len_train_loader) as progress_bar:
         for epoch in range(num_epoches):
             for i, batch in enumerate(train_loader):
                 progress_bar.set_description(
-                    f'EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len(train_loader)}]'
+                    f'EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len_train_loader}]'
                 )
 
                 batch = {key: batch[key].to(device) for key in batch.keys()}

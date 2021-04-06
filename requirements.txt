@@ -5,3 +5,4 @@ numpy
 regex
 torch
 tqdm
+wandb
