@@ -100,11 +100,11 @@ def main():
                 progress_bar.update()
 
                 if log and (i + epoch * len(train_loader)) % log_interval == 0:
-                    valid_loss = evaluate(model, valid_loader)
+                    # valid_loss = evaluate(model, valid_loader)
                     wandb.log(
                         {
                             'Semantic similarity loss [TRAIN]': loss.item(),
-                            'Semantic similarity loss [VALID]': valid_loss.item(),
+                            # 'Semantic similarity loss [VALID]': valid_loss.item(),
                         }
                     )
 
