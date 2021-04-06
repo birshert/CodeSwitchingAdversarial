@@ -1,13 +1,11 @@
 import json
-import multiprocessing as mp
 
 import torch
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AdamW
 
-from dataset import CustomDataset
+from dataset import CustomDataloader
 from model import Model
 
 
@@ -66,7 +64,6 @@ def main():
     print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
 
     model = Model()
-    model.load_models()
 
     model.to(device)
 
@@ -79,13 +76,8 @@ def main():
     texts, _ = zip(*((elem['text'], elem['intent']) for elem in data))
     texts_train, texts_test = train_test_split(texts, test_size=0.1, random_state=SEED)
 
-    dataset_train = CustomDataset(texts_train)
-    dataset_test = CustomDataset(texts_test)
-
-    dataloader_train = DataLoader(dataset_train, batch_size=8, shuffle=True, num_workers=mp.cpu_count(),
-                                  pin_memory=True)
-    dataloader_test = DataLoader(dataset_test, batch_size=8, shuffle=False, num_workers=mp.cpu_count(),
-                                 pin_memory=True)
+    dataloader_train = CustomDataloader(texts_train)
+    dataloader_test = CustomDataloader(texts_test, shuffle=False)
 
     optimizer = AdamW(model.parameters(), lr=1e-3)
 
@@ -96,7 +88,7 @@ def main():
 
         print(loss_train, loss_test)
 
-    model.save_models()
+    model.save()
 
 
 if __name__ == '__main__':
