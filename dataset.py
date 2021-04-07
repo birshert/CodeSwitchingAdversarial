@@ -29,7 +29,7 @@ class CustomDataloader(Dataset):
             yield self.__getitem__(item)
 
     def __len__(self):
-        return len(self.sentences)
+        raise NotImplementedError('Len cannot be calculated with not fixed batch size')
 
     def __getitem__(self, item: int):
         sentence = ' '.join(self.sentences[item])
@@ -78,7 +78,7 @@ class CustomDataloader(Dataset):
         if self.shuffle:
             random.shuffle(self.sentences)
 
-        for p in self.batch(self.data(), self.batch_size * 100):
+        for p in self.batch(self.data(), self.batch_size * 10):
             yield from map(self.collate_fn, self.batch(sorted(p, key=lambda x: x['origin_len']), self.batch_size))
 
     def batch(self, data, batch_size):

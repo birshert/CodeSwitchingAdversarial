@@ -19,6 +19,7 @@ def evaluate(model, dataloader):
     model.eval()
 
     total_loss = 0
+    dataloader_len = 0
 
     for batch in dataloader:
         batch = {key: batch[key].to(device, non_blocking=True) for key in batch.keys()}
@@ -27,7 +28,9 @@ def evaluate(model, dataloader):
 
         total_loss += output.item()
 
-    return total_loss / len(dataloader)
+        dataloader_len += 1
+
+    return total_loss / dataloader_len
 
 
 def _set_seed(seed):
@@ -48,17 +51,21 @@ def main():
 
     wandb.config.update(
         {
-            'num_epoches': 1,
+            'num_epoches': 5,
             'log_interval': 50,
             'log_examples': 500,
-            'learning_rate': 1e-4,
-            'batch_size': 1000
+            'learning_rate': 1e-3,
+            'batch_size': 5000
         }
     )
 
     model = Model()
+    model.load_pretrained()
+
     model.to(device, non_blocking=True)
+
     model.russian_forward()
+    model.russian_hook()
 
     with open('data/dstc_utterances.json') as f:
         data = json.load(f)
@@ -87,7 +94,7 @@ def main():
                     f'EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len_train_loader}]'
                 )
 
-                batch = {key: batch[key].to(device) for key in batch.keys()}
+                batch = {key: batch[key].to(device, non_blocking=True) for key in batch.keys()}
 
                 optimizer.zero_grad()
 
@@ -99,16 +106,16 @@ def main():
 
                 progress_bar.update()
 
-                if log and (i + epoch * len(train_loader)) % log_interval == 0:
-                    # valid_loss = evaluate(model, valid_loader)
+                if log and (i + epoch * len_train_loader) % log_interval == 0:
+                    valid_loss = evaluate(model, valid_loader)
                     wandb.log(
                         {
                             'Semantic similarity loss [TRAIN]': loss.item(),
-                            # 'Semantic similarity loss [VALID]': valid_loss.item(),
+                            'Semantic similarity loss [VALID]': valid_loss,
                         }
                     )
 
-                # if log and (i + epoch * len(train_loader)) % log_interval_examples == 0:
+                # if log and (i + epoch * len_train_loader) % log_interval_examples == 0:
                 #     wandb.log(
                 #         {
                 #             f'Image step [{(i + epoch * len(train_loader))}]': [
