@@ -134,5 +134,5 @@ dmypy.json
 # pycharm project
 .idea
 
-# nltk data
-*nltk*
+# dataset (license)
+data/

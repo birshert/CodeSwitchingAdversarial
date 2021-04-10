@@ -1,97 +1,125 @@
-import random
+import os
 
-import numpy as np
+import pandas as pd
 import torch
-from nltk.tokenize import word_tokenize
-from torch.utils.data import Dataset
-from transformers import (
-    XLMRobertaTokenizerFast,
-)
+from keras.preprocessing.sequence import pad_sequences
+from torch.utils.data import TensorDataset
 
 
-class CustomDataloader(Dataset):
-    """
-    Returns tokenized sentence and masked sentence (currently masking random word from the sentence), using XLM-R
-    tokenizer.
-    """
+def create_mapping(df):
+    slot2idx = {t: i for i, t in enumerate({x for _ in df['slot_labels'].str.split().values for x in _})}
+    slot2idx['PAD'] = len(slot2idx)
 
-    def __init__(self, sentences, shuffle: bool = True, batch_size: int = 100):
-        self.sentences = [
-            word_tokenize(sentence) for sentence in sentences
-        ]
-        self.shuffle = shuffle
-        self.batch_size = batch_size
+    intent2idx = {t: i for i, t in enumerate(df['intent'].unique())}
 
-        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained('xlm-roberta-base')
+    return slot2idx, intent2idx
 
-    def data(self):
-        for item in range(len(self.sentences)):
-            yield self.__getitem__(item)
 
-    def __len__(self):
-        raise NotImplementedError('Len cannot be calculated with not fixed batch size')
+def prepare_datasets(tokenizer):
+    if os.path.exists('data/cached'):
+        train_dataset = torch.load('data/cached/train.pt')
+        test_dataset = torch.load('data/cached/test.pt')
+        num_slots, num_intents = torch.load('data/cached/num_labels.pt')
 
-    def __getitem__(self, item: int):
-        sentence = ' '.join(self.sentences[item])
+        return train_dataset, test_dataset, num_slots, num_intents
 
-        word_to_mask = np.random.choice(np.arange(0, len(self.sentences[item])))  # TODO: choose what words to mask
+    train = pd.DataFrame()
 
-        masked_sentence = self.sentences[item]
-        masked_sentence[word_to_mask] = self.tokenizer.mask_token
-        masked_sentence = ' '.join(masked_sentence)
+    for language in ['EN', 'DE', 'ES', 'FR', 'JA', 'PT', 'ZH']:
+        df = pd.read_csv(
+            f'data/atis/train/train_{language}.tsv',
+            delimiter='\t',
+            index_col='id'
+        )
+        df['language'] = language
+        train = pd.concat((train, df))
 
-        origin = self.tokenizer.encode(sentence, return_tensors='pt').flatten()
-        masked = self.tokenizer.encode(masked_sentence, return_tensors='pt').flatten()
+    train.reset_index(drop=True, inplace=True)
 
-        return {
-            'origin': origin,
-            'masked': masked,
-            'origin_len': len(origin),
-            'masked_len': len(masked)
-        }
+    test = pd.DataFrame()
 
-    @staticmethod
-    def batch_size_fn(x):
-        return x['origin_len']
+    for language in ['EN', 'DE', 'ES', 'FR', 'JA', 'PT', 'ZH']:
+        df = pd.read_csv(
+            f'data/atis/test/test_{language}.tsv',
+            delimiter='\t',
+            index_col='id'
+        )
+        df['language'] = language
+        test = pd.concat((test, df))
 
-    @staticmethod
-    def collate_fn(data):
-        origin_max_len = max(elem['origin_len'] for elem in data)
-        masked_max_len = max(elem['masked_len'] for elem in data)
+    test.reset_index(drop=True, inplace=True)
 
-        origin = torch.zeros((len(data), origin_max_len), dtype=torch.long)
-        masked = torch.zeros((len(data), masked_max_len), dtype=torch.long)
+    slot2idx, intent2idx = create_mapping(train)
+    num_slots, num_intents = len(slot2idx), len(intent2idx)
 
-        for i, elem in enumerate(data):
-            origin_elem = elem['origin']
-            masked_elem = elem['masked']
+    def tokenize_and_preserve_labels(sentence, text_labels):
+        if isinstance(sentence, str):
+            sentence = sentence.split()
 
-            origin[i][:len(origin_elem)] = origin_elem
-            masked[i][:len(masked_elem)] = masked_elem
+        if isinstance(text_labels, str):
+            text_labels = text_labels.split()
 
-        return {
-            'origin': origin,
-            'masked': masked
-        }
+        tokenized_sentence = []
+        labels = []
 
-    def __iter__(self):
-        if self.shuffle:
-            random.shuffle(self.sentences)
+        for word, label in zip(sentence, text_labels):
+            tokenized_word = tokenizer.tokenize(word)
+            tokenized_sentence.extend(tokenized_word)
+            labels.extend([slot2idx.get(label, num_slots)] * len(tokenized_word))
 
-        for p in self.batch(self.data(), self.batch_size * 10):
-            yield from map(self.collate_fn, self.batch(sorted(p, key=lambda x: x['origin_len']), self.batch_size))
+        return tokenized_sentence, labels
 
-    def batch(self, data, batch_size):
-        minibatch, size_so_far = [], 0
+    train_data = []
 
-        for elem in data:
-            minibatch.append(elem)
-            size_so_far += self.batch_size_fn(elem)
-            if size_so_far == batch_size:
-                yield minibatch
-                minibatch, size_so_far = [], 0
-            elif size_so_far > batch_size:
-                yield minibatch[:-1]
-                minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(elem)
-        if minibatch:
-            yield minibatch
+    for index, row in train.iterrows():
+        tokens, slot_labels = tokenize_and_preserve_labels(row['utterance'], row['slot_labels'])
+        train_data.append((tokens, slot_labels, intent2idx.get(row['intent'], num_intents)))
+
+    test_data = []
+
+    for index, row in test.iterrows():
+        tokens, slot_labels = tokenize_and_preserve_labels(row['utterance'], row['slot_labels'])
+        test_data.append((tokens, slot_labels, intent2idx.get(row['intent'], num_intents)))
+
+    def data2tensors(data):
+        tokenized_texts = [elem[0] for elem in data]
+        labels = [elem[1] for elem in data]
+        intents = [elem[2] for elem in data]
+
+        input_ids = pad_sequences(
+            [tokenizer.convert_tokens_to_ids(txt) for txt in tokenized_texts],
+            dtype='long',
+            value=0.0,
+            truncating='post',
+            padding='post'
+        )
+
+        tags = pad_sequences(
+            labels,
+            value=slot2idx['PAD'],
+            padding='post',
+            dtype='long',
+            truncating='post'
+        )
+
+        attention_masks = [[int(i != 0.0) for i in ii] for ii in input_ids]
+
+        return (
+            torch.tensor(input_ids, dtype=torch.long),
+            torch.tensor(tags, dtype=torch.long),
+            torch.tensor(intents, dtype=torch.long),
+            torch.tensor(attention_masks, dtype=torch.long),
+        )
+
+    train_data = data2tensors(train_data)
+    test_data = data2tensors(test_data)
+
+    train_dataset = TensorDataset(*train_data)
+    test_dataset = TensorDataset(*test_data)
+
+    os.mkdir('data/cached')
+    torch.save(train_dataset, f'data/cached/train.pt')
+    torch.save(test_dataset, f'data/cached/test.pt')
+    torch.save((num_slots + 1, num_intents + 1), 'data/cached/num_labels.pt')
+
+    return train_dataset, test_dataset, num_slots + 1, num_intents + 1

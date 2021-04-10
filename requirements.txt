@@ -1,8 +1,8 @@
-transformers
-nltk
-scikit-learn
-numpy
-regex
-torch
-tqdm
-wandb
+transformers==4.5.0
+numpy==1.19.5
+torch==1.7.1+cu110
+tqdm==4.60.0
+wandb==0.10.25
+seqeval==1.2.2
+pandas==1.2.3
+Keras==2.4.3

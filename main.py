@@ -1,14 +1,19 @@
-import json
-
 import torch
 import wandb
-from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AdamW
 
-from dataset import CustomDataloader
-from model import Model
+from dataset import prepare_datasets
+from model import JointBERT
+from utils import (
+    MODEL_CLASSES,
+    MODEL_PATH_MAP,
+    set_global_logging_level,
+)
 
+
+set_global_logging_level()
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 SEED = 1234
@@ -22,13 +27,21 @@ def evaluate(model, dataloader):
     dataloader_len = 0
 
     for batch in dataloader:
-        batch = {key: batch[key].to(device, non_blocking=True) for key in batch.keys()}
+        batch = tuple(t.to(device, non_blocking=True) for t in batch)
+        b_input_ids, b_tags, b_intents, b_attention_masks = batch
 
-        output = model(**batch)
+        output = model(
+            input_ids=b_input_ids,
+            attention_mask=b_attention_masks,
+            intent_label_ids=b_intents,
+            slot_labels_ids=b_tags
+        )[0]
 
         total_loss += output.item()
 
         dataloader_len += 1
+
+    model.train()
 
     return total_loss / dataloader_len
 
@@ -51,54 +64,72 @@ def main():
 
     wandb.config.update(
         {
+            'model_name': 'bert',
             'num_epoches': 5,
-            'log_interval': 50,
-            'log_examples': 500,
-            'learning_rate': 1e-3,
-            'batch_size': 5000
+            'log_interval': 1000,
+            'learning_rate': 1e-4,
+            'batch_size': 8,
+            'dropout': 0.1,
+            'ignore_index': 0,
+            'slot_coef': 1.0
         }
     )
 
-    model = Model()
-    model.load_pretrained()
+    config_class, model_class, tokenizer_class = MODEL_CLASSES[wandb.config['model_name']]
+    model_path = MODEL_PATH_MAP[wandb.config['model_name']]
+
+    train_dataset, test_dataset, num_slots, num_intents = prepare_datasets(
+        tokenizer_class.from_pretrained(model_path)
+    )
+
+    wandb.config.update(
+        {
+            'num_intent_labels': num_intents,
+            'num_slot_labels': num_slots
+        }
+    )
+
+    train_loader = DataLoader(
+        train_dataset, shuffle=True, batch_size=wandb.config['batch_size'],
+        pin_memory=True, num_workers=8, drop_last=False
+    )
+
+    test_loader = DataLoader(
+        test_dataset, shuffle=True, batch_size=wandb.config['batch_size'],
+        pin_memory=True, num_workers=8, drop_last=False
+    )
+
+    model = JointBERT.from_pretrained(
+        model_path,
+        config=config_class.from_pretrained(model_path),
+        wandb_config=wandb.config
+    )
 
     model.to(device, non_blocking=True)
-
-    model.russian_forward()
-    model.russian_hook()
-
-    with open('data/dstc_utterances.json') as f:
-        data = json.load(f)
-
-    texts, _ = zip(*((elem['text'], elem['intent']) for elem in data))
-    texts_train, texts_valid = train_test_split(texts, test_size=0.01, random_state=SEED)
-
-    train_loader = CustomDataloader(texts_train, batch_size=wandb.config['batch_size'])
-    valid_loader = CustomDataloader(texts_valid, batch_size=wandb.config['batch_size'], shuffle=False)
 
     optimizer = AdamW(model.parameters(), lr=wandb.config['learning_rate'])
 
     num_epoches = wandb.config['num_epoches']
     log_interval = wandb.config['log_interval']
-    log_interval_examples = wandb.config['log_examples']
 
-    len_train_loader = 0
-
-    for _ in train_loader:
-        len_train_loader += 1
-
-    with tqdm(total=num_epoches * len_train_loader) as progress_bar:
+    with tqdm(total=num_epoches * len(train_loader)) as progress_bar:
         for epoch in range(num_epoches):
             for i, batch in enumerate(train_loader):
                 progress_bar.set_description(
-                    f'EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len_train_loader}]'
+                    f'EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len(train_loader)}]'
                 )
 
-                batch = {key: batch[key].to(device, non_blocking=True) for key in batch.keys()}
+                batch = tuple(t.to(device, non_blocking=True) for t in batch)
+                b_input_ids, b_tags, b_intents, b_attention_masks = batch
 
                 optimizer.zero_grad()
 
-                loss = model(**batch)
+                loss = model(
+                    input_ids=b_input_ids,
+                    attention_mask=b_attention_masks,
+                    intent_label_ids=b_intents,
+                    slot_labels_ids=b_tags
+                )[0]
 
                 loss.backward()
 
@@ -106,25 +137,14 @@ def main():
 
                 progress_bar.update()
 
-                if log and (i + epoch * len_train_loader) % log_interval == 0:
-                    valid_loss = evaluate(model, valid_loader)
+                if log and (i + epoch * len(train_loader)) % log_interval == 0:
+                    test_loss = evaluate(model, test_loader)
                     wandb.log(
                         {
-                            'Semantic similarity loss [TRAIN]': loss.item(),
-                            'Semantic similarity loss [VALID]': valid_loss,
+                            'Loss [TRAIN]': loss.item(),
+                            'Loss [TEST]': test_loss,
                         }
                     )
-
-                # if log and (i + epoch * len_train_loader) % log_interval_examples == 0:
-                #     wandb.log(
-                #         {
-                #             f'Image step [{(i + epoch * len(train_loader))}]': [
-                #                 wandb.Image(torch_2_image(glow.sample_fixed(64), rows=8))
-                #             ]
-                #         }
-                #     )
-
-        model.save()
 
 
 if __name__ == '__main__':
