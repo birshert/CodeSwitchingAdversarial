@@ -136,3 +136,6 @@ dmypy.json
 
 # dataset (license)
 data/
+
+# wandb
+wandb

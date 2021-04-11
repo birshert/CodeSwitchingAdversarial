@@ -1,107 +1,65 @@
-import os
-
-import numpy as np
-import regex
-import torch
 import torch.nn as nn
-import torch.nn.functional as func
 from transformers import (
-    PretrainedConfig,
-    XLMRobertaForMaskedLM,
-    XLMRobertaModel,
-    XLMRobertaTokenizerFast,
+    BertModel,
+    BertPreTrainedModel,
 )
 
 
-def is_cyrillic(s: str):
-    return bool(regex.search(r'\p{IsCyrillic}', s))
+class JointBERT(BertPreTrainedModel):
+
+    def __init__(self, config, wandb_config: dict):
+        super().__init__(config)
+
+        self.model = BertModel(config=config)
+
+        self.num_intent_labels = wandb_config['num_intent_labels']
+        self.num_slot_labels = wandb_config['num_slot_labels']
+
+        self.intent_classifier = Classifier(config.hidden_size, self.num_intent_labels, wandb_config['dropout'])
+        self.slot_classifier = Classifier(config.hidden_size, self.num_slot_labels, wandb_config['dropout'])
+
+        self.intent_loss = nn.CrossEntropyLoss()
+        self.slot_loss = nn.CrossEntropyLoss(ignore_index=wandb_config['ignore_index'])
+
+        self.slot_coef = wandb_config['slot_coef']
+
+    def forward(self, input_ids, attention_mask, intent_label_ids, slot_labels_ids):
+        outputs = self.model(input_ids, attention_mask=attention_mask)
+
+        sequence_output = outputs[0]
+        pooled_output = outputs[1]
+
+        intent_logits = self.intent_classifier(pooled_output)
+        slot_logits = self.slot_classifier(sequence_output)
+
+        total_loss = 0
+
+        if intent_label_ids is not None:
+            total_loss += self.intent_loss(intent_logits.view(-1, self.num_intent_labels), intent_label_ids.view(-1))
+
+        if slot_labels_ids is not None:
+            if attention_mask is not None:
+                active_loss = attention_mask.view(-1) == 1
+                active_logits = slot_logits.view(-1, self.num_slot_labels)[active_loss]
+                active_labels = slot_labels_ids.view(-1)[active_loss]
+                slot_loss = self.slot_loss(active_logits, active_labels)
+            else:
+                slot_loss = self.slot_loss(slot_logits.view(-1, self.num_slot_labels), slot_labels_ids.view(-1))
+
+            total_loss += slot_loss * self.slot_coef
+
+        outputs = ((intent_logits, slot_logits),) + outputs[2:]
+        outputs = (total_loss,) + outputs
+
+        return outputs
 
 
-class Model(nn.Module):
-    """
-    MLM generating a token for origin and then another model calculating two sentences embeddings (origin and
-    transformed).
-    Calculating loss based on distance between embeddings.
-    """
+class Classifier(nn.Module):
 
-    def __init__(self):
-        super().__init__()
-        self.mlm_model_name = 'xlm-roberta-base'
-        self.emb_model_name = 'xlm-roberta-base-mean-tokens'
+    def __init__(self, input_dim, num_labels, dropout=0.):
+        super(Classifier, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.linear = nn.Linear(input_dim, num_labels)
 
-        self.mlm_model = XLMRobertaForMaskedLM(PretrainedConfig.from_json_file(f'models/{self.mlm_model_name}.json'))
-        self.emb_model = XLMRobertaModel(PretrainedConfig.from_json_file(f'models/{self.emb_model_name}.json'))
-
-        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(self.mlm_model_name)
-        self.vocab_len = len(self.tokenizer.get_vocab())
-
-        self.emb_model.eval()
-        for parameter in self.emb_model.parameters():
-            parameter.requires_grad = False
-
-        self.russian_tokens_mask = np.zeros(self.mlm_model.lm_head.decoder.weight.shape[0])
-
-        for token in range(len(self.russian_tokens_mask)):
-            if is_cyrillic(self.tokenizer.decode([token])):
-                self.russian_tokens_mask[token] = 1
-
-        self.russian_tokens_mask = self.russian_tokens_mask.astype(bool)
-
-    def load_pretrained(self):
-        self.mlm_model = XLMRobertaForMaskedLM.from_pretrained(self.mlm_model_name)
-        self.emb_model = XLMRobertaModel.from_pretrained('sentence-transformers/xlm-r-100langs-bert-base-nli-mean-tokens')
-
-    def load(self):
-        self.mlm_model.load_state_dict(torch.load(f'models/{self.mlm_model_name}.pt'))
-        self.emb_model.load_state_dict(torch.load(f'models/{self.emb_model_name}.pt'))
-
-    def save(self):
-        if not os.path.exists('models'):
-            os.makedirs('models')
-
-        torch.save(self.mlm_model.state_dict(), f'models/{self.mlm_model_name}.pt')
-        torch.save(self.emb_model.state_dict(), f'models/{self.emb_model_name}.pt')
-
-    @torch.no_grad()
-    def russian_forward(self):
-        self.mlm_model.lm_head.decoder.weight[~self.russian_tokens_mask] = 0
-        self.mlm_model.lm_head.decoder.bias[~self.russian_tokens_mask] = 0
-
-    def russian_hook(self):
-        weight_multi = torch.zeros_like(self.mlm_model.lm_head.decoder.weight, device=self.mlm_model.device)
-        weight_multi[self.russian_tokens_mask] = 1.0
-        self.mlm_model.lm_head.decoder.weight.register_hook(lambda grad: grad.mul_(weight_multi))
-
-        bias_multi = torch.zeros_like(self.mlm_model.lm_head.decoder.bias, device=self.mlm_model.device)
-        bias_multi[self.russian_tokens_mask] = 1.0
-        self.mlm_model.lm_head.decoder.bias.register_hook(lambda grad: grad.mul_(bias_multi))
-
-    def parameters(self, recurse: bool = True):
-        yield from self.mlm_model.parameters()
-
-    def train(self, mode: bool = True):
-        self.mlm_model.train()
-        return self
-
-    def eval(self):
-        self.mlm_model.eval()
-        return self
-
-    def forward(self, origin, masked):
-        mask_token_index = torch.where(masked == self.tokenizer.mask_token_id)[1]
-
-        masked_sentence_logits = self.mlm_model(masked).logits
-        mask_token_logits = masked_sentence_logits[0, mask_token_index, :]
-        one_hot = func.gumbel_softmax(mask_token_logits, hard=True, tau=1000)
-
-        input_embeddings = self.emb_model.embeddings.word_embeddings.weight[masked]
-        input_embeddings[
-            masked == self.tokenizer.mask_token_id] = one_hot @ self.emb_model.embeddings.word_embeddings.weight
-
-        embeddings_1 = self.emb_model.forward(inputs_embeds=input_embeddings).pooler_output
-        embeddings_2 = self.emb_model(origin).pooler_output
-
-        normalized_embeddings_1 = func.normalize(embeddings_1, p=2)
-        normalized_embeddings_2 = func.normalize(embeddings_2, p=2)
-
-        return -torch.sum(normalized_embeddings_1 * normalized_embeddings_2, dim=1).mean()
+    def forward(self, x):
+        return self.linear(self.dropout(x))

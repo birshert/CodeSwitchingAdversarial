@@ -9,19 +9,23 @@ from torch.utils.data import TensorDataset
 def create_mapping(df):
     slot2idx = {t: i for i, t in enumerate({x for _ in df['slot_labels'].str.split().values for x in _})}
     slot2idx['PAD'] = len(slot2idx)
+    slot2idx['UNK'] = len(slot2idx)
+
+    idx2slot = {value: key for key, value in slot2idx.items()}
 
     intent2idx = {t: i for i, t in enumerate(df['intent'].unique())}
+    intent2idx['UNK'] = len(intent2idx)
 
-    return slot2idx, intent2idx
+    return slot2idx, idx2slot, intent2idx
 
 
 def prepare_datasets(tokenizer):
     if os.path.exists('data/cached'):
         train_dataset = torch.load('data/cached/train.pt')
         test_dataset = torch.load('data/cached/test.pt')
-        num_slots, num_intents = torch.load('data/cached/num_labels.pt')
+        num_slots, num_intents, idx2slot = torch.load('data/cached/misc.pt')
 
-        return train_dataset, test_dataset, num_slots, num_intents
+        return train_dataset, test_dataset, num_slots, num_intents, idx2slot
 
     train = pd.DataFrame()
 
@@ -49,7 +53,7 @@ def prepare_datasets(tokenizer):
 
     test.reset_index(drop=True, inplace=True)
 
-    slot2idx, intent2idx = create_mapping(train)
+    slot2idx, idx2slot, intent2idx = create_mapping(train)
     num_slots, num_intents = len(slot2idx), len(intent2idx)
 
     def tokenize_and_preserve_labels(sentence, text_labels):
@@ -65,7 +69,7 @@ def prepare_datasets(tokenizer):
         for word, label in zip(sentence, text_labels):
             tokenized_word = tokenizer.tokenize(word)
             tokenized_sentence.extend(tokenized_word)
-            labels.extend([slot2idx.get(label, num_slots)] * len(tokenized_word))
+            labels.extend([slot2idx.get(label, slot2idx['UNK'])] * len(tokenized_word))
 
         return tokenized_sentence, labels
 
@@ -73,13 +77,13 @@ def prepare_datasets(tokenizer):
 
     for index, row in train.iterrows():
         tokens, slot_labels = tokenize_and_preserve_labels(row['utterance'], row['slot_labels'])
-        train_data.append((tokens, slot_labels, intent2idx.get(row['intent'], num_intents)))
+        train_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
 
     test_data = []
 
     for index, row in test.iterrows():
         tokens, slot_labels = tokenize_and_preserve_labels(row['utterance'], row['slot_labels'])
-        test_data.append((tokens, slot_labels, intent2idx.get(row['intent'], num_intents)))
+        test_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
 
     def data2tensors(data):
         tokenized_texts = [elem[0] for elem in data]
@@ -120,6 +124,6 @@ def prepare_datasets(tokenizer):
     os.mkdir('data/cached')
     torch.save(train_dataset, f'data/cached/train.pt')
     torch.save(test_dataset, f'data/cached/test.pt')
-    torch.save((num_slots + 1, num_intents + 1), 'data/cached/num_labels.pt')
+    torch.save((num_slots, num_intents, idx2slot), 'data/cached/misc.pt')
 
-    return train_dataset, test_dataset, num_slots + 1, num_intents + 1
+    return train_dataset, test_dataset, num_slots, num_intents, idx2slot

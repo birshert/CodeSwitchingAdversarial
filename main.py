@@ -1,17 +1,22 @@
+import warnings
+
 import torch
-import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AdamW
 
+import wandb
 from dataset import prepare_datasets
 from model import JointBERT
 from utils import (
+    compute_metrics,
     MODEL_CLASSES,
     MODEL_PATH_MAP,
     set_global_logging_level,
 )
 
+
+warnings.filterwarnings('ignore')
 
 set_global_logging_level()
 
@@ -20,30 +25,69 @@ SEED = 1234
 
 
 @torch.no_grad()
-def evaluate(model, dataloader):
+def evaluate(model, dataloader, idx2slot, progress_bar, **kwargs):
     model.eval()
 
     total_loss = 0
-    dataloader_len = 0
 
-    for batch in dataloader:
+    slot_preds = torch.tensor([])
+    intent_preds = torch.tensor([])
+
+    slot_true = torch.tensor([])
+    intent_true = torch.tensor([])
+
+    for i, batch in enumerate(dataloader):
+        progress_bar.set_description(
+            f'EVALUATE EPOCH [{kwargs["epoch"] + 1:02d}/{kwargs["num_epoches"]:02d}], BATCH [{i + 1:03d}/'
+            f'{len(dataloader)}]'
+        )
+
         batch = tuple(t.to(device, non_blocking=True) for t in batch)
-        b_input_ids, b_tags, b_intents, b_attention_masks = batch
+        batch = {
+            'input_ids': batch[0],
+            'attention_mask': batch[1],
+            'intent_label_ids': batch[2],
+            'slot_labels_ids': batch[3]
+        }
 
-        output = model(
-            input_ids=b_input_ids,
-            attention_mask=b_attention_masks,
-            intent_label_ids=b_intents,
-            slot_labels_ids=b_tags
-        )[0]
+        output = model(**batch)
 
-        total_loss += output.item()
+        loss, (intent_logits, slot_logits) = output[:2]
 
-        dataloader_len += 1
+        total_loss += loss.item()
+
+        slot_preds = torch.cat((slot_preds, slot_logits.cpu()))
+        intent_preds = torch.cat((intent_preds, intent_logits.cpu()))
+
+        slot_true = torch.cat((slot_true, batch['slot_labels_ids'].cpu()))
+        intent_true = torch.cat((intent_true, batch['intent_label_ids'].cpu()))
+
+        progress_bar.update()
+
+    slot_preds = slot_preds.argmax(dim=2).numpy()
+    intent_preds = intent_preds.argmax(dim=1).numpy()
+
+    slot_true = slot_true.numpy()
+    intent_true = intent_true.numpy()
+
+    slot_true_list = [[] for _ in range(slot_true.shape[0])]
+    slot_preds_list = [[] for _ in range(slot_true.shape[0])]
+
+    for i in range(slot_true.shape[0]):
+        for j in range(slot_true.shape[1]):
+            if slot_true[i, j]:
+                slot_true_list[i].append(idx2slot[slot_true[i][j]])
+                slot_preds_list[i].append(idx2slot[slot_preds[i][j]])
+
+    results = {
+        'loss [VALID]': total_loss / len(dataloader)
+    }
+
+    results.update(compute_metrics(intent_preds, intent_true, slot_preds_list, slot_true_list))
 
     model.train()
 
-    return total_loss / dataloader_len
+    return results
 
 
 def _set_seed(seed):
@@ -66,7 +110,7 @@ def main():
         {
             'model_name': 'bert',
             'num_epoches': 5,
-            'log_interval': 1000,
+            'log_interval': 50,
             'learning_rate': 1e-4,
             'batch_size': 8,
             'dropout': 0.1,
@@ -78,7 +122,7 @@ def main():
     config_class, model_class, tokenizer_class = MODEL_CLASSES[wandb.config['model_name']]
     model_path = MODEL_PATH_MAP[wandb.config['model_name']]
 
-    train_dataset, test_dataset, num_slots, num_intents = prepare_datasets(
+    train_dataset, test_dataset, num_slots, num_intents, idx2slot = prepare_datasets(
         tokenizer_class.from_pretrained(model_path)
     )
 
@@ -112,24 +156,27 @@ def main():
     num_epoches = wandb.config['num_epoches']
     log_interval = wandb.config['log_interval']
 
-    with tqdm(total=num_epoches * len(train_loader)) as progress_bar:
+    with tqdm(total=num_epoches * (len(train_loader) + len(test_loader))) as progress_bar:
         for epoch in range(num_epoches):
+            if log:
+                wandb.log(evaluate(model, test_loader, idx2slot, progress_bar, epoch=epoch, num_epoches=num_epoches))
+
             for i, batch in enumerate(train_loader):
                 progress_bar.set_description(
-                    f'EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len(train_loader)}]'
+                    f'TRAIN EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len(train_loader)}]'
                 )
 
                 batch = tuple(t.to(device, non_blocking=True) for t in batch)
-                b_input_ids, b_tags, b_intents, b_attention_masks = batch
+                batch = {
+                    'input_ids': batch[0],
+                    'attention_mask': batch[1],
+                    'intent_label_ids': batch[2],
+                    'slot_labels_ids': batch[3]
+                }
 
                 optimizer.zero_grad()
 
-                loss = model(
-                    input_ids=b_input_ids,
-                    attention_mask=b_attention_masks,
-                    intent_label_ids=b_intents,
-                    slot_labels_ids=b_tags
-                )[0]
+                loss = model(**batch)[0]
 
                 loss.backward()
 
@@ -138,11 +185,9 @@ def main():
                 progress_bar.update()
 
                 if log and (i + epoch * len(train_loader)) % log_interval == 0:
-                    test_loss = evaluate(model, test_loader)
                     wandb.log(
                         {
-                            'Loss [TRAIN]': loss.item(),
-                            'Loss [TEST]': test_loss,
+                            'loss [TRAIN]': loss.item()
                         }
                     )
 
