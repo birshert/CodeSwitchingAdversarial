@@ -45,14 +45,12 @@ def evaluate(model, dataloader, idx2slot, progress_bar, **kwargs):
         batch = tuple(t.to(device, non_blocking=True) for t in batch)
         batch = {
             'input_ids': batch[0],
-            'attention_mask': batch[1],
+            'slot_labels_ids': batch[1],
             'intent_label_ids': batch[2],
-            'slot_labels_ids': batch[3]
+            'attention_mask': batch[3],
         }
 
-        output = model(**batch)
-
-        loss, (intent_logits, slot_logits) = output[:2]
+        loss, intent_logits, slot_logits = model(**batch)
 
         total_loss += loss.item()
 
@@ -64,8 +62,8 @@ def evaluate(model, dataloader, idx2slot, progress_bar, **kwargs):
 
         progress_bar.update()
 
-    slot_preds = slot_preds.argmax(dim=2).numpy()
-    intent_preds = intent_preds.argmax(dim=1).numpy()
+    slot_preds = slot_preds.argmax(dim=-1).numpy()
+    intent_preds = intent_preds.argmax(dim=-1).numpy()
 
     slot_true = slot_true.numpy()
     intent_true = intent_true.numpy()
@@ -76,16 +74,14 @@ def evaluate(model, dataloader, idx2slot, progress_bar, **kwargs):
     for i in range(slot_true.shape[0]):
         for j in range(slot_true.shape[1]):
             if slot_true[i, j]:
-                slot_true_list[i].append(idx2slot[slot_true[i][j]])
-                slot_preds_list[i].append(idx2slot[slot_preds[i][j]])
+                slot_true_list[i].append(idx2slot[slot_true[i, j]])
+                slot_preds_list[i].append(idx2slot[slot_preds[i, j]])
 
     results = {
         'loss [VALID]': total_loss / len(dataloader)
     }
 
     results.update(compute_metrics(intent_preds, intent_true, slot_preds_list, slot_true_list))
-
-    model.train()
 
     return results
 
@@ -109,11 +105,12 @@ def main():
     wandb.config.update(
         {
             'model_name': 'bert',
-            'num_epoches': 5,
+            'num_epoches': 10,
             'log_interval': 50,
-            'learning_rate': 1e-4,
+            'log_metrics': True,
+            'learning_rate': 1e-5,
             'batch_size': 8,
-            'dropout': 0.1,
+            'dropout': 0,
             'ignore_index': 0,
             'slot_coef': 1.0
         }
@@ -135,12 +132,12 @@ def main():
 
     train_loader = DataLoader(
         train_dataset, shuffle=True, batch_size=wandb.config['batch_size'],
-        pin_memory=True, num_workers=8, drop_last=False
+        pin_memory=True, drop_last=False
     )
 
     test_loader = DataLoader(
-        test_dataset, shuffle=True, batch_size=wandb.config['batch_size'],
-        pin_memory=True, num_workers=8, drop_last=False
+        test_dataset, shuffle=False, batch_size=wandb.config['batch_size'],
+        pin_memory=True, drop_last=False
     )
 
     model = JointBERT.from_pretrained(
@@ -150,16 +147,19 @@ def main():
     )
 
     model.to(device, non_blocking=True)
+    wandb.watch(model)
 
     optimizer = AdamW(model.parameters(), lr=wandb.config['learning_rate'])
 
     num_epoches = wandb.config['num_epoches']
     log_interval = wandb.config['log_interval']
 
-    with tqdm(total=num_epoches * (len(train_loader) + len(test_loader))) as progress_bar:
+    with tqdm(total=num_epoches * (len(train_loader) + len(test_loader) * wandb.config['log_metrics'])) as progress_bar:
         for epoch in range(num_epoches):
-            if log:
+            if log and wandb.config['log_metrics']:
                 wandb.log(evaluate(model, test_loader, idx2slot, progress_bar, epoch=epoch, num_epoches=num_epoches))
+
+            model.train()
 
             for i, batch in enumerate(train_loader):
                 progress_bar.set_description(
@@ -169,14 +169,14 @@ def main():
                 batch = tuple(t.to(device, non_blocking=True) for t in batch)
                 batch = {
                     'input_ids': batch[0],
-                    'attention_mask': batch[1],
+                    'slot_labels_ids': batch[1],
                     'intent_label_ids': batch[2],
-                    'slot_labels_ids': batch[3]
+                    'attention_mask': batch[3],
                 }
 
                 optimizer.zero_grad()
 
-                loss = model(**batch)[0]
+                loss, _, _ = model(**batch)
 
                 loss.backward()
 

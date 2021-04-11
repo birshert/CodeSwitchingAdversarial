@@ -7,9 +7,8 @@ from torch.utils.data import TensorDataset
 
 
 def create_mapping(df):
-    slot2idx = {t: i for i, t in enumerate({x for _ in df['slot_labels'].str.split().values for x in _})}
-    slot2idx['PAD'] = len(slot2idx)
-    slot2idx['UNK'] = len(slot2idx)
+    labels = ['PAD', 'UNK'] + list({x for _ in df['slot_labels'].str.split().values for x in _})
+    slot2idx = {t: i for i, t in enumerate(labels)}
 
     idx2slot = {value: key for key, value in slot2idx.items()}
 

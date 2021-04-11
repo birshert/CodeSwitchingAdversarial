@@ -48,10 +48,7 @@ class JointBERT(BertPreTrainedModel):
 
             total_loss += slot_loss * self.slot_coef
 
-        outputs = ((intent_logits, slot_logits),) + outputs[2:]
-        outputs = (total_loss,) + outputs
-
-        return outputs
+        return total_loss, intent_logits, slot_logits
 
 
 class Classifier(nn.Module):
