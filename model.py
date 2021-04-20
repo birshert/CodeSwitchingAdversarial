@@ -7,10 +7,10 @@ from transformers import (
 
 class XLMRoberta(nn.Module):
 
-    def __init__(self, model_path, config, wandb_config: dict):
+    def __init__(self, config, wandb_config: dict):
         super(XLMRoberta, self).__init__()
 
-        self.model = XLMRobertaModel.from_pretrained(model_path, config=config)
+        self.model = XLMRobertaModel(config=config)
 
         self.num_intent_labels = wandb_config['num_intent_labels']
         self.num_slot_labels = wandb_config['num_slot_labels']

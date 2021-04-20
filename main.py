@@ -110,7 +110,7 @@ def main():
             'log_metrics': True,
             'learning_rate': 1e-5,
             'batch_size': 8,
-            'dropout': 0,
+            'dropout': 0.1,
             'ignore_index': 0,
             'slot_coef': 1.0
         }
@@ -141,7 +141,6 @@ def main():
     )
 
     model = XLMRoberta(
-        model_path,
         config=config_class.from_pretrained(model_path),
         wandb_config=wandb.config
     )
@@ -186,9 +185,12 @@ def main():
                 if log and (i + epoch * len(train_loader)) % log_interval == 0:
                     wandb.log(
                         {
-                            'loss [TRAIN]': loss.item()
+                            'loss [TRAIN]': loss.item(),
+                            'step': i + epoch * len(train_loader)
                         }
                     )
+
+            torch.save(model.state_dict(), f'models/{wandb.config["model_name"]}.pt')
 
 
 if __name__ == '__main__':
