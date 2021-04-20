@@ -98,7 +98,7 @@ def main():
     _set_seed(SEED)
     print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
 
-    log = False
+    log = True
 
     wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
 
@@ -109,7 +109,7 @@ def main():
             'log_interval': 50,
             'log_metrics': True,
             'learning_rate': 1e-5,
-            'batch_size': 4,
+            'batch_size': 8,
             'dropout': 0,
             'ignore_index': 0,
             'slot_coef': 1.0
