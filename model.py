@@ -1,16 +1,16 @@
 import torch.nn as nn
+from torch.cuda.amp import autocast
 from transformers import (
-    BertModel,
-    BertPreTrainedModel,
+    XLMRobertaModel,
 )
 
 
-class JointBERT(BertPreTrainedModel):
+class XLMRoberta(nn.Module):
 
-    def __init__(self, config, wandb_config: dict):
-        super().__init__(config)
+    def __init__(self, model_path, config, wandb_config: dict):
+        super(XLMRoberta, self).__init__()
 
-        self.model = BertModel(config=config)
+        self.model = XLMRobertaModel.from_pretrained(model_path, config=config)
 
         self.num_intent_labels = wandb_config['num_intent_labels']
         self.num_slot_labels = wandb_config['num_slot_labels']
@@ -24,13 +24,14 @@ class JointBERT(BertPreTrainedModel):
         self.slot_coef = wandb_config['slot_coef']
 
     def forward(self, input_ids, attention_mask, intent_label_ids, slot_labels_ids):
-        outputs = self.model(input_ids, attention_mask=attention_mask)
+        with autocast():
+            outputs = self.model(input_ids, attention_mask=attention_mask)
 
-        sequence_output = outputs[0]
-        pooled_output = outputs[1]
+            sequence_output = outputs[0]
+            pooled_output = outputs[1]
 
-        intent_logits = self.intent_classifier(pooled_output)
-        slot_logits = self.slot_classifier(sequence_output)
+            intent_logits = self.intent_classifier(pooled_output)
+            slot_logits = self.slot_classifier(sequence_output)
 
         total_loss = 0
 

@@ -8,19 +8,19 @@ from seqeval.metrics import (
     recall_score,
 )
 from transformers import (
-    BertConfig,
-    BertTokenizer,
+    XLMRobertaConfig,
+    XLMRobertaTokenizerFast,
 )
 
-from model import JointBERT
+from model import XLMRoberta
 
 
 MODEL_CLASSES = {
-    'bert': (BertConfig, JointBERT, BertTokenizer),
+    'xlm-r': (XLMRobertaConfig, XLMRoberta, XLMRobertaTokenizerFast),
 }
 
 MODEL_PATH_MAP = {
-    'bert': 'bert-base-uncased',
+    'xlm-r': 'xlm-roberta-base',
 }
 
 

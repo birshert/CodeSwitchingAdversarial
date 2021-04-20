@@ -1,13 +1,13 @@
 import warnings
 
 import torch
+import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AdamW
 
-import wandb
 from dataset import prepare_datasets
-from model import JointBERT
+from model import XLMRoberta
 from utils import (
     compute_metrics,
     MODEL_CLASSES,
@@ -25,7 +25,7 @@ SEED = 1234
 
 
 @torch.no_grad()
-def evaluate(model, dataloader, idx2slot, progress_bar, **kwargs):
+def evaluate(model, dataloader, idx2slot, p_bar, **kwargs):
     model.eval()
 
     total_loss = 0
@@ -37,7 +37,7 @@ def evaluate(model, dataloader, idx2slot, progress_bar, **kwargs):
     intent_true = torch.tensor([])
 
     for i, batch in enumerate(dataloader):
-        progress_bar.set_description(
+        p_bar.set_description(
             f'EVALUATE EPOCH [{kwargs["epoch"] + 1:02d}/{kwargs["num_epoches"]:02d}], BATCH [{i + 1:03d}/'
             f'{len(dataloader)}]'
         )
@@ -60,7 +60,7 @@ def evaluate(model, dataloader, idx2slot, progress_bar, **kwargs):
         slot_true = torch.cat((slot_true, batch['slot_labels_ids'].cpu()))
         intent_true = torch.cat((intent_true, batch['intent_label_ids'].cpu()))
 
-        progress_bar.update()
+        p_bar.update()
 
     slot_preds = slot_preds.argmax(dim=-1).numpy()
     intent_preds = intent_preds.argmax(dim=-1).numpy()
@@ -98,18 +98,18 @@ def main():
     _set_seed(SEED)
     print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
 
-    log = True
+    log = False
 
     wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
 
     wandb.config.update(
         {
-            'model_name': 'bert',
+            'model_name': 'xlm-r',
             'num_epoches': 10,
             'log_interval': 50,
             'log_metrics': True,
             'learning_rate': 1e-5,
-            'batch_size': 8,
+            'batch_size': 4,
             'dropout': 0,
             'ignore_index': 0,
             'slot_coef': 1.0
@@ -140,29 +140,28 @@ def main():
         pin_memory=True, drop_last=False
     )
 
-    model = JointBERT.from_pretrained(
+    model = XLMRoberta(
         model_path,
         config=config_class.from_pretrained(model_path),
         wandb_config=wandb.config
     )
 
     model.to(device, non_blocking=True)
-    wandb.watch(model)
 
     optimizer = AdamW(model.parameters(), lr=wandb.config['learning_rate'])
 
     num_epoches = wandb.config['num_epoches']
     log_interval = wandb.config['log_interval']
 
-    with tqdm(total=num_epoches * (len(train_loader) + len(test_loader) * wandb.config['log_metrics'])) as progress_bar:
+    with tqdm(total=num_epoches * (len(train_loader) + len(test_loader) * wandb.config['log_metrics'] * log)) as p_bar:
         for epoch in range(num_epoches):
             if log and wandb.config['log_metrics']:
-                wandb.log(evaluate(model, test_loader, idx2slot, progress_bar, epoch=epoch, num_epoches=num_epoches))
+                wandb.log(evaluate(model, test_loader, idx2slot, p_bar, epoch=epoch, num_epoches=num_epoches))
 
             model.train()
 
             for i, batch in enumerate(train_loader):
-                progress_bar.set_description(
+                p_bar.set_description(
                     f'TRAIN EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len(train_loader)}]'
                 )
 
@@ -182,7 +181,7 @@ def main():
 
                 optimizer.step()
 
-                progress_bar.update()
+                p_bar.update()
 
                 if log and (i + epoch * len(train_loader)) % log_interval == 0:
                     wandb.log(
