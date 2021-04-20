@@ -129,13 +129,13 @@ dmypy.json
 .pyre/
 
 # model files
-*.pt
+models/*.pt
 
 # pycharm project
 .idea
 
 # dataset (license)
-data/
+atis/
 
 # wandb
 wandb
