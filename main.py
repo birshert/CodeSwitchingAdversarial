@@ -15,6 +15,7 @@ from utils import (
     set_global_logging_level,
 )
 
+from torch.cuda.amp import GradScaler, autocast
 
 warnings.filterwarnings('ignore')
 
@@ -98,7 +99,7 @@ def main():
     _set_seed(SEED)
     print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
 
-    log = True
+    log = False
 
     wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
 
@@ -109,7 +110,7 @@ def main():
             'log_interval': 50,
             'log_metrics': True,
             'learning_rate': 1e-5,
-            'batch_size': 8,
+            'batch_size': 1,
             'dropout': 0.1,
             'ignore_index': 0,
             'slot_coef': 1.0
@@ -148,6 +149,7 @@ def main():
     model.to(device, non_blocking=True)
 
     optimizer = AdamW(model.parameters(), lr=wandb.config['learning_rate'])
+    scaler = GradScaler()
 
     num_epoches = wandb.config['num_epoches']
     log_interval = wandb.config['log_interval']
@@ -164,21 +166,24 @@ def main():
                     f'TRAIN EPOCH [{epoch + 1:02d}/{num_epoches:02d}], BATCH [{i + 1:03d}/{len(train_loader)}]'
                 )
 
-                batch = tuple(t.to(device, non_blocking=True) for t in batch)
-                batch = {
-                    'input_ids': batch[0],
-                    'slot_labels_ids': batch[1],
-                    'intent_label_ids': batch[2],
-                    'attention_mask': batch[3],
-                }
+                with autocast():
+                    batch = tuple(t.to(device, non_blocking=True) for t in batch)
+                    batch = {
+                        'input_ids': batch[0],
+                        'slot_labels_ids': batch[1],
+                        'intent_label_ids': batch[2],
+                        'attention_mask': batch[3],
+                    }
 
-                optimizer.zero_grad()
+                    optimizer.zero_grad()
 
-                loss, _, _ = model(**batch)
+                    loss, _, _ = model(**batch)
 
-                loss.backward()
+                scaler.scale(loss).backward()
 
-                optimizer.step()
+                scaler.step(optimizer)
+
+                scaler.update()
 
                 p_bar.update()
 
