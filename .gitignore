@@ -135,7 +135,11 @@ models/*.pt
 .idea
 
 # dataset (license)
-atis/
+data/atis/*
 
 # wandb
 wandb
+
+# aligner
+aligner/*
+/aligner/

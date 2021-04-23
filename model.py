@@ -1,16 +1,16 @@
 import torch.nn as nn
-from torch.cuda.amp import autocast
-from transformers import (
-    XLMRobertaModel,
-)
+from transformers import XLMRobertaModel
 
 
 class XLMRoberta(nn.Module):
 
-    def __init__(self, config, wandb_config: dict):
+    def __init__(self, config, wandb_config: dict, **kwargs):
         super(XLMRoberta, self).__init__()
 
-        self.model = XLMRobertaModel(config=config)
+        if wandb_config['load_pretrained']:
+            self.model = XLMRobertaModel.from_pretrained(kwargs['model_path'])
+        else:
+            self.model = XLMRobertaModel(config=config)
 
         self.num_intent_labels = wandb_config['num_intent_labels']
         self.num_slot_labels = wandb_config['num_slot_labels']
@@ -24,14 +24,13 @@ class XLMRoberta(nn.Module):
         self.slot_coef = wandb_config['slot_coef']
 
     def forward(self, input_ids, attention_mask, intent_label_ids, slot_labels_ids):
-        with autocast():
-            outputs = self.model(input_ids, attention_mask=attention_mask)
+        outputs = self.model(input_ids, attention_mask=attention_mask)
 
-            sequence_output = outputs[0]
-            pooled_output = outputs[1]
+        sequence_output = outputs[0]
+        pooled_output = outputs[1]
 
-            intent_logits = self.intent_classifier(pooled_output)
-            slot_logits = self.slot_classifier(sequence_output)
+        intent_logits = self.intent_classifier(pooled_output)
+        slot_logits = self.slot_classifier(sequence_output)
 
         intent_loss = self.intent_loss(intent_logits.view(-1, self.num_intent_labels), intent_label_ids.view(-1))
 

@@ -1,128 +1,108 @@
 import os
 
+import numpy as np
 import pandas as pd
 import torch
-from keras.preprocessing.sequence import pad_sequences
-from torch.utils.data import TensorDataset
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import Dataset
+
+from utils import (
+    create_mapping,
+    tokenize_and_preserve_labels,
+)
 
 
-def create_mapping(df):
-    labels = ['PAD', 'UNK'] + list({x for _ in df['slot_labels'].str.split().values for x in _})
-    slot2idx = {t: i for i, t in enumerate(labels)}
+slot2idx_global = dict()
 
-    idx2slot = {value: key for key, value in slot2idx.items()}
 
-    intent2idx = {t: i for i, t in enumerate(df['intent'].unique())}
-    intent2idx['UNK'] = len(intent2idx)
+def read_atis(subset: str):
+    result = pd.DataFrame()
 
-    return slot2idx, idx2slot, intent2idx
+    for language in ['en', 'de', 'es', 'fr', 'ja', 'pt', 'zh_cn']:
+        df = pd.read_csv(
+            f'data/atis/{subset}/{subset}_{language}.tsv',
+            delimiter='\t',
+            index_col='id'
+        )
+        df['language'] = language
+        df['uuid'] = np.arange(len(df))
+        result = pd.concat((result, df))
+
+    result.reset_index(drop=True, inplace=True)
+
+    return result
+
+
+class CustomDataset(Dataset):
+
+    def __init__(self, data, tokenizer, slot2idx):
+        self.input_ids = [
+            torch.tensor(tokenizer.convert_tokens_to_ids(txt), dtype=torch.long) for txt in [elem[0] for elem in data]
+        ]
+        self.labels = [torch.tensor(elem[1], dtype=torch.long) for elem in data]
+        self.intents = [torch.tensor(elem[2], dtype=torch.long) for elem in data]
+
+        self.slot2idx = slot2idx
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, item):
+        return (
+            self.input_ids[item],
+            self.labels[item],
+            self.intents[item]
+        )
+
+    def collate_fn(self, x):
+        input_ids = [elem[0] for elem in x]
+        labels = [elem[1] for elem in x]
+        intents = [elem[2] for elem in x]
+
+        input_ids = pad_sequence(input_ids, batch_first=True)
+        labels = pad_sequence(labels, batch_first=True, padding_value=self.slot2idx['PAD'])
+        attention_masks = input_ids != 0
+
+        return {
+            'input_ids': input_ids.to(torch.long),
+            'slot_labels_ids': labels.to(torch.long),
+            'intent_label_ids': torch.tensor(intents, dtype=torch.long),
+            'attention_mask': torch.tensor(attention_masks, dtype=torch.long)
+        }
 
 
 def prepare_datasets(tokenizer):
     if os.path.exists('data/cached'):
         train_dataset = torch.load('data/cached/train.pt')
         test_dataset = torch.load('data/cached/test.pt')
-        num_slots, num_intents, idx2slot = torch.load('data/cached/misc.pt')
+        num_slots, num_intents, slot2idx, idx2slot = torch.load('data/cached/misc.pt')
 
-        return train_dataset, test_dataset, num_slots, num_intents, idx2slot
+        return train_dataset, test_dataset, num_slots, num_intents, slot2idx, idx2slot
 
-    train = pd.DataFrame()
-
-    for language in ['EN', 'DE', 'ES', 'FR', 'JA', 'PT', 'ZH']:
-        df = pd.read_csv(
-            f'data/atis/train/train_{language}.tsv',
-            delimiter='\t',
-            index_col='id'
-        )
-        df['language'] = language
-        train = pd.concat((train, df))
-
-    train.reset_index(drop=True, inplace=True)
-
-    test = pd.DataFrame()
-
-    for language in ['EN', 'DE', 'ES', 'FR', 'JA', 'PT', 'ZH']:
-        df = pd.read_csv(
-            f'data/atis/test/test_{language}.tsv',
-            delimiter='\t',
-            index_col='id'
-        )
-        df['language'] = language
-        test = pd.concat((test, df))
-
-    test.reset_index(drop=True, inplace=True)
+    train = read_atis('train')
+    test = read_atis('test')
 
     slot2idx, idx2slot, intent2idx = create_mapping(train)
     num_slots, num_intents = len(slot2idx), len(intent2idx)
 
-    def tokenize_and_preserve_labels(sentence, text_labels):
-        if isinstance(sentence, str):
-            sentence = sentence.split()
-
-        if isinstance(text_labels, str):
-            text_labels = text_labels.split()
-
-        tokenized_sentence = []
-        labels = []
-
-        for word, label in zip(sentence, text_labels):
-            tokenized_word = tokenizer.tokenize(word)
-            tokenized_sentence.extend(tokenized_word)
-            labels.extend([slot2idx.get(label, slot2idx['UNK'])] * len(tokenized_word))
-
-        return tokenized_sentence, labels
-
     train_data = []
 
     for index, row in train.iterrows():
-        tokens, slot_labels = tokenize_and_preserve_labels(row['utterance'], row['slot_labels'])
+        tokens, slot_labels = tokenize_and_preserve_labels(tokenizer, row['utterance'], row['slot_labels'], slot2idx)
         train_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
 
     test_data = []
 
     for index, row in test.iterrows():
-        tokens, slot_labels = tokenize_and_preserve_labels(row['utterance'], row['slot_labels'])
+        tokens, slot_labels = tokenize_and_preserve_labels(tokenizer, row['utterance'], row['slot_labels'], slot2idx)
         test_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
 
-    def data2tensors(data):
-        tokenized_texts = [elem[0] for elem in data]
-        labels = [elem[1] for elem in data]
-        intents = [elem[2] for elem in data]
-
-        input_ids = pad_sequences(
-            [tokenizer.convert_tokens_to_ids(txt) for txt in tokenized_texts],
-            dtype='long',
-            value=0.0,
-            truncating='post',
-            padding='post'
-        )
-
-        tags = pad_sequences(
-            labels,
-            value=slot2idx['PAD'],
-            padding='post',
-            dtype='long',
-            truncating='post'
-        )
-
-        attention_masks = [[int(i != 0.0) for i in ii] for ii in input_ids]
-
-        return (
-            torch.tensor(input_ids, dtype=torch.long),
-            torch.tensor(tags, dtype=torch.long),
-            torch.tensor(intents, dtype=torch.long),
-            torch.tensor(attention_masks, dtype=torch.long),
-        )
-
-    train_data = data2tensors(train_data)
-    test_data = data2tensors(test_data)
-
-    train_dataset = TensorDataset(*train_data)
-    test_dataset = TensorDataset(*test_data)
+    train_dataset = CustomDataset(train_data, tokenizer, slot2idx)
+    test_dataset = CustomDataset(test_data, tokenizer, slot2idx)
 
     os.mkdir('data/cached')
     torch.save(train_dataset, f'data/cached/train.pt')
     torch.save(test_dataset, f'data/cached/test.pt')
-    torch.save((num_slots, num_intents, idx2slot), 'data/cached/misc.pt')
+    torch.save((num_slots, num_intents, slot2idx, idx2slot), 'data/cached/misc.pt')
 
-    return train_dataset, test_dataset, num_slots, num_intents, idx2slot
+    return train_dataset, test_dataset, num_slots, num_intents, slot2idx, idx2slot

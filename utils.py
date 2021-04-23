@@ -72,3 +72,33 @@ def set_global_logging_level(level=logging.ERROR, prefices=None):
     for name in logging.root.manager.loggerDict:
         if re.match(prefix_re, name):
             logging.getLogger(name).setLevel(level)
+
+
+def tokenize_and_preserve_labels(tokenizer, sentence, text_labels, slot2idx):
+    if isinstance(sentence, str):
+        sentence = sentence.split()
+
+    if isinstance(text_labels, str):
+        text_labels = text_labels.split()
+
+    tokenized_sentence = []
+    labels = []
+
+    for word, label in zip(sentence, text_labels):
+        tokenized_word = tokenizer.tokenize(word)
+        tokenized_sentence.extend(tokenized_word)
+        labels.extend([slot2idx.get(label, slot2idx['UNK'])] * len(tokenized_word))
+
+    return tokenized_sentence, labels
+
+
+def create_mapping(df):
+    labels = ['PAD', 'UNK'] + list(sorted({x for _ in df['slot_labels'].str.split().values for x in _}))
+    slot2idx = {t: i for i, t in enumerate(labels)}
+
+    idx2slot = {value: key for key, value in slot2idx.items()}
+
+    intent2idx = {t: i for i, t in enumerate(df['intent'].unique())}
+    intent2idx['UNK'] = len(intent2idx)
+
+    return slot2idx, idx2slot, intent2idx
