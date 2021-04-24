@@ -2,7 +2,6 @@ import warnings
 
 import torch
 import wandb
-import yaml
 from torch.cuda.amp import (
     autocast,
     GradScaler,
@@ -14,7 +13,9 @@ from transformers import AdamW
 
 from dataset import prepare_datasets
 from utils import (
+    _set_seed,
     compute_metrics,
+    load_config,
     model_mapping,
     set_global_logging_level,
 )
@@ -29,7 +30,7 @@ SEED = 1234
 
 
 @torch.no_grad()
-def evaluate(model, dataloader, p_bar, **kwargs):
+def evaluate(model, dataloader, p_bar=None, **kwargs):
     model.eval()
 
     total_loss = 0
@@ -41,12 +42,13 @@ def evaluate(model, dataloader, p_bar, **kwargs):
     intent_true = torch.tensor([])
 
     for i, batch in enumerate(dataloader):
-        p_bar.set_description(
-            f'EVALUATE EPOCH [{kwargs["epoch"] + 1:02d}/{kwargs["num_epoches"]:02d}], BATCH [{i + 1:03d}/'
-            f'{len(dataloader)}]'
-        )
+        if p_bar is not None:
+            p_bar.set_description(
+                f'EVALUATE EPOCH [{kwargs["epoch"] + 1:02d}/{kwargs["num_epoches"]:02d}], BATCH [{i + 1:03d}/'
+                f'{len(dataloader)}]'
+            )
 
-        with autocast(enabled=wandb.config['fp-16']):
+        with autocast(enabled=kwargs['fp_16']):
             batch = {key: batch[key].to(device, non_blocking=True) for key in batch.keys()}
             loss, intent_logits, slot_logits = model(**batch)
 
@@ -58,7 +60,8 @@ def evaluate(model, dataloader, p_bar, **kwargs):
         slot_true.extend(batch['slot_labels_ids'].cpu())
         intent_true = torch.cat((intent_true, batch['intent_label_ids'].cpu()))
 
-        p_bar.update()
+        if p_bar is not None:
+            p_bar.update()
 
     slot_preds = pad_sequence(slot_preds, batch_first=True, padding_value=kwargs['slot2idx']['PAD'])
     slot_true = pad_sequence(slot_true, batch_first=True, padding_value=kwargs['slot2idx']['PAD'])
@@ -87,14 +90,6 @@ def evaluate(model, dataloader, p_bar, **kwargs):
     return results
 
 
-def _set_seed(seed):
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-
 def main():
     _set_seed(SEED)
     print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
@@ -102,9 +97,7 @@ def main():
     log = True
 
     wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
-
-    with open('config.yaml', 'r') as f:
-        wandb.config.update(yaml.load(f))
+    wandb.config.update(load_config())
 
     model = model_mapping[wandb.config['model_name']](config=wandb.config)
     model.to(device, non_blocking=True)
@@ -132,7 +125,7 @@ def main():
             if log and wandb.config['log_metrics']:
                 wandb.log(
                     evaluate(
-                        model, test_loader, p_bar,
+                        model, test_loader, p_bar, fp_16=wandb.config['fp-16'],
                         epoch=epoch, num_epoches=num_epoches,
                         slot2idx=slot2idx, idx2slot=idx2slot
                     )

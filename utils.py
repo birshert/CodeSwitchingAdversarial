@@ -2,6 +2,8 @@ import logging
 import re
 
 import numpy as np
+import torch
+import yaml
 from seqeval.metrics import (
     f1_score,
     precision_score,
@@ -94,3 +96,16 @@ def create_mapping(df):
     intent2idx['UNK'] = len(intent2idx)
 
     return slot2idx, idx2slot, intent2idx
+
+
+def load_config():
+    with open('config.yaml', 'r') as f:
+        return yaml.load(f, Loader=yaml.FullLoader)
+
+
+def _set_seed(seed):
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)

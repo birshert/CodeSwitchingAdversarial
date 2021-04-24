@@ -58,13 +58,12 @@ class CustomDataset(Dataset):
 
         input_ids = pad_sequence(input_ids, batch_first=True)
         labels = pad_sequence(labels, batch_first=True, padding_value=self.slot2idx['PAD'])
-        attention_masks = input_ids != 0
 
         return {
             'input_ids': input_ids.to(torch.long),
             'slot_labels_ids': labels.to(torch.long),
             'intent_label_ids': torch.tensor(intents, dtype=torch.long),
-            'attention_mask': torch.tensor(attention_masks, dtype=torch.long)
+            'attention_mask': (input_ids != 0).to(torch.long)
         }
 
 
@@ -80,7 +79,6 @@ def prepare_datasets(tokenizer):
     test = read_atis('test')
 
     slot2idx, idx2slot, intent2idx = create_mapping(train)
-    num_slots, num_intents = len(slot2idx), len(intent2idx)
 
     train_data = []
 

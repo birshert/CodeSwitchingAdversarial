@@ -48,7 +48,7 @@ class XLMRoberta(nn.Module):
     def __parent_name__(self):
         return 'xlm-roberta-base'
 
-    def forward(self, input_ids, attention_mask, intent_label_ids, slot_labels_ids):
+    def forward(self, input_ids, intent_label_ids, slot_labels_ids, attention_mask=None):
         outputs = self.model(input_ids, attention_mask=attention_mask)
 
         sequence_output = outputs[0]
