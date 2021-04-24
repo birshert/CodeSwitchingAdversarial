@@ -7,20 +7,12 @@ from seqeval.metrics import (
     precision_score,
     recall_score,
 )
-from transformers import (
-    XLMRobertaConfig,
-    XLMRobertaTokenizerFast,
-)
 
 from model import XLMRoberta
 
 
-MODEL_CLASSES = {
-    'xlm-r': (XLMRobertaConfig, XLMRoberta, XLMRobertaTokenizerFast),
-}
-
-MODEL_PATH_MAP = {
-    'xlm-r': 'xlm-roberta-base',
+model_mapping = {
+    'xlm-r': XLMRoberta,
 }
 
 

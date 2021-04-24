@@ -1,0 +1,14 @@
+batch_size: 8
+dropout: 0.1
+fp-16: true
+ignore_index: 0
+learning_rate: 1.0e-05
+load_checkpoint: true
+load_pretrained: false
+log_interval: 50
+log_metrics: true
+model_name: xlm-r
+num_epoches: 20
+num_intent_labels: 23
+num_slot_labels: 143
+slot_coef: 1.0

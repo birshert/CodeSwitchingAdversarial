@@ -12,9 +12,6 @@ from utils import (
 )
 
 
-slot2idx_global = dict()
-
-
 def read_atis(subset: str):
     result = pd.DataFrame()
 
@@ -75,9 +72,9 @@ def prepare_datasets(tokenizer):
     if os.path.exists('data/cached'):
         train_dataset = torch.load('data/cached/train.pt')
         test_dataset = torch.load('data/cached/test.pt')
-        num_slots, num_intents, slot2idx, idx2slot = torch.load('data/cached/misc.pt')
+        slot2idx, idx2slot = torch.load('data/cached/misc.pt')
 
-        return train_dataset, test_dataset, num_slots, num_intents, slot2idx, idx2slot
+        return train_dataset, test_dataset, slot2idx, idx2slot
 
     train = read_atis('train')
     test = read_atis('test')
@@ -103,6 +100,6 @@ def prepare_datasets(tokenizer):
     os.mkdir('data/cached')
     torch.save(train_dataset, f'data/cached/train.pt')
     torch.save(test_dataset, f'data/cached/test.pt')
-    torch.save((num_slots, num_intents, slot2idx, idx2slot), 'data/cached/misc.pt')
+    torch.save((slot2idx, idx2slot), 'data/cached/misc.pt')
 
-    return train_dataset, test_dataset, num_slots, num_intents, slot2idx, idx2slot
+    return train_dataset, test_dataset, slot2idx, idx2slot

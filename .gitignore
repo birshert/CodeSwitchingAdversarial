@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # model files
-models/*.pt
+models/*/*.pt
 
 # pycharm project
 .idea

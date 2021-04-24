@@ -2,6 +2,7 @@ import warnings
 
 import torch
 import wandb
+import yaml
 from torch.cuda.amp import (
     autocast,
     GradScaler,
@@ -12,11 +13,9 @@ from tqdm import tqdm
 from transformers import AdamW
 
 from dataset import prepare_datasets
-from model import XLMRoberta
 from utils import (
     compute_metrics,
-    MODEL_CLASSES,
-    MODEL_PATH_MAP,
+    model_mapping,
     set_global_logging_level,
 )
 
@@ -30,7 +29,7 @@ SEED = 1234
 
 
 @torch.no_grad()
-def evaluate(model, dataloader, idx2slot, p_bar, **kwargs):
+def evaluate(model, dataloader, p_bar, **kwargs):
     model.eval()
 
     total_loss = 0
@@ -76,8 +75,8 @@ def evaluate(model, dataloader, idx2slot, p_bar, **kwargs):
     for i in range(slot_true.shape[0]):
         for j in range(slot_true.shape[1]):
             if slot_true[i, j]:
-                slot_true_list[i].append(idx2slot[slot_true[i, j]])
-                slot_preds_list[i].append(idx2slot[slot_preds[i, j]])
+                slot_true_list[i].append(kwargs['idx2slot'][slot_true[i, j]])
+                slot_preds_list[i].append(kwargs['idx2slot'][slot_preds[i, j]])
 
     results = {
         'loss [VALID]': total_loss / len(dataloader)
@@ -104,36 +103,13 @@ def main():
 
     wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
 
-    wandb.config.update(
-        {
-            'model_name': 'xlm-r',
-            'load_pretrained': False,
-            'load_checkpoint': False,
-            'num_epoches': 10,
-            'log_interval': 50,
-            'log_metrics': True,
-            'learning_rate': 1e-5,
-            'batch_size': 8,
-            'dropout': 0.1,
-            'ignore_index': 0,
-            'slot_coef': 1.0,
-            'fp-16': True
-        }
-    )
+    with open('config.yaml', 'r') as f:
+        wandb.config.update(yaml.load(f))
 
-    config_class, model_class, tokenizer_class = MODEL_CLASSES[wandb.config['model_name']]
-    model_path = MODEL_PATH_MAP[wandb.config['model_name']]
+    model = model_mapping[wandb.config['model_name']](config=wandb.config)
+    model.to(device, non_blocking=True)
 
-    train_dataset, test_dataset, num_slots, num_intents, slot2idx, idx2slot = prepare_datasets(
-        tokenizer_class.from_pretrained(model_path)
-    )
-
-    wandb.config.update(
-        {
-            'num_intent_labels': num_intents,
-            'num_slot_labels': num_slots
-        }
-    )
+    train_dataset, test_dataset, slot2idx, idx2slot = prepare_datasets(model.tokenizer)
 
     train_loader = DataLoader(
         train_dataset, shuffle=True, batch_size=wandb.config['batch_size'],
@@ -144,17 +120,6 @@ def main():
         test_dataset, shuffle=False, batch_size=wandb.config['batch_size'],
         pin_memory=True, drop_last=False, collate_fn=train_dataset.collate_fn
     )
-
-    model = XLMRoberta(
-        config=config_class.from_pretrained(model_path),
-        wandb_config=wandb.config,
-        model_path=model_path
-    )
-
-    if wandb.config['load_checkpoint']:
-        model.load_state_dict(torch.load(f'models/{wandb.config["model_name"]}.pt'))
-
-    model.to(device, non_blocking=True)
 
     optimizer = AdamW(model.parameters(), lr=wandb.config['learning_rate'])
     scaler = GradScaler(enabled=wandb.config['fp-16'])
@@ -167,7 +132,9 @@ def main():
             if log and wandb.config['log_metrics']:
                 wandb.log(
                     evaluate(
-                        model, test_loader, idx2slot, p_bar, epoch=epoch, num_epoches=num_epoches, slot2idx=slot2idx
+                        model, test_loader, p_bar,
+                        epoch=epoch, num_epoches=num_epoches,
+                        slot2idx=slot2idx, idx2slot=idx2slot
                     )
                 )
 
@@ -200,7 +167,7 @@ def main():
                         }
                     )
 
-            torch.save(model.state_dict(), f'models/{wandb.config["model_name"]}.pt')
+            model.save()
 
 
 if __name__ == '__main__':
