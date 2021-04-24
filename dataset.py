@@ -8,14 +8,18 @@ from torch.utils.data import Dataset
 
 from utils import (
     create_mapping,
+    load_config,
     tokenize_and_preserve_labels,
 )
 
 
-def read_atis(subset: str):
+def read_atis(subset: str, languages: list = None):
+    if languages is None:
+        languages = load_config()['languages']
+
     result = pd.DataFrame()
 
-    for language in ['en', 'de', 'es', 'fr', 'ja', 'pt', 'zh_cn']:
+    for language in languages:
         df = pd.read_csv(
             f'data/atis/{subset}/{subset}_{language}.tsv',
             delimiter='\t',

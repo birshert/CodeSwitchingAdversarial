@@ -19,10 +19,11 @@ from utils import (
 )
 
 
+@torch.no_grad()
 def evaluate_adversarial(attacker_class, **kwargs):
     attacker = attacker_class(**kwargs)
 
-    test = read_atis('test')
+    test = read_atis('test', ['en'])
 
     data = []
 
@@ -67,9 +68,9 @@ class BaseAdversarial:
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        config = load_config()
+        self.config = load_config()
 
-        self.model = model_mapping[config['model_name']](config=config)
+        self.model = model_mapping[self.config['model_name']](config=self.config)
         self.model.to(self.device, non_blocking=True)
 
     def get_candidates(self, x, y_slots, y_intent, pos):
@@ -112,15 +113,17 @@ class BaseAdversarial:
 
 class Adversarial1(BaseAdversarial):
     """
-    Simple adversarial attack based on changing words in random order to their translations in set of target languages,
-    that maximize model's loss.
+    Simple adversarial attack based on changing tokens to their translations in set of target languages.
+    Token's translation is chosen in order to maximize model's loss.
+    Translations are generated with dictionaries from word2word library.
     """
 
     def __init__(self, languages: list = None):
         super().__init__()
 
         if languages is None:
-            languages = ['de', 'es', 'fr', 'ja', 'pt', 'zh_cn']
+            languages = self.config['languages']
+            languages.remove('en')
 
         self.languages = languages
 
@@ -151,11 +154,11 @@ class Adversarial1(BaseAdversarial):
 
         for lang in self.languages:
             try:
-                token = self.translators[lang](x[pos], n_best=1)[0]
-                candidates.append(token)
-
+                token = np.random.choice(self.translators[lang](x[pos], n_best=3))
                 xc[pos] = token
+
                 losses.append(self.calculate_loss(xc, y_slots, y_intent))
+                candidates.append(token)
             except KeyError:
                 pass
 
@@ -189,11 +192,11 @@ class Adversarial2(Adversarial1):
         candidates, losses = [], []
 
         try:
-            token = self.translators[self.attack_language](x[pos], n_best=1)[0]
-            candidates.append(token)
-
+            token = np.random.choice(self.translators[self.attack_language](x[pos], n_best=3))
             xc[pos] = token
+
             losses.append(self.calculate_loss(xc, y_slots, y_intent))
+            candidates.append(token)
         except KeyError:
             pass
 

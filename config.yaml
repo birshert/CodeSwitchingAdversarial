@@ -2,6 +2,14 @@ batch_size: 8
 dropout: 0.1
 fp-16: true
 ignore_index: 0
+languages:
+- en
+- de
+- es
+- fr
+- ja
+- pt
+- zh_cn
 learning_rate: 1.0e-05
 load_checkpoint: true
 load_pretrained: false
