@@ -21,20 +21,14 @@
 \usepackage{subcaption}
 \usepackage{listings}
 \usepackage[colorlinks, linkcolor=blue, urlcolor=blue]{hyperref}
+\usepackage{cite}
 \usepackage{indentfirst}
-
-% Misc
-\makeatletter
-\renewcommand{\@biblabel}[1]{#1.}  % Заменяем библиографию с квадратных скобок на точку:
-\makeatother
 
 \geometry{left=2.5cm}  % левое поле
 \geometry{right=1.5cm}  % правое поле
 \geometry{top=1.5cm}  % верхнее поле
 \geometry{bottom=1.5cm}  % нижнее поле
 \renewcommand{\baselinestretch}{1.5}  % междустрочный интервал
-
-\newcommand{\bibref}[3]{\hyperlink{#1}{#2 (#3)}} % biblabel, authors, year
 
 \renewcommand{\theenumi}{\arabic{enumi}}  % Меняем везде перечисления на цифра.цифра
 \renewcommand{\labelenumi}{\arabic{enumi}}  % Меняем везде перечисления на цифра.цифра
@@ -49,85 +43,98 @@
 %%%%%%%%%%%%%%%%%%
 % ТИТУЛЬНЫЙ ЛИСТ %
 %%%%%%%%%%%%%%%%%%
-\input{title}
+    \input{title}
 %%%%%%%%%%%%%%%%%%
 % ТИТУЛЬНЫЙ ЛИСТ %
 %%%%%%%%%%%%%%%%%%
 
-\newpage
+    \newpage
 
 %%%%%%%%%%%%%%%%%%
 %   ОГЛАВЛЕНИЕ   %
 %%%%%%%%%%%%%%%%%%
-{
-	\hypersetup{linkcolor=black}
-    \tableofcontents
-}
+    {
+        \hypersetup{linkcolor=black}
+        \tableofcontents
+    }
 %%%%%%%%%%%%%%%%%%
 %   ОГЛАВЛЕНИЕ   %
 %%%%%%%%%%%%%%%%%%
 
-\newpage
+    \newpage
 
 %%%%%%%%%%%%%%%%%%
 %    АБСТРАКТ    %
 %%%%%%%%%%%%%%%%%%
-\input{abstract}
+    \input{abstract}
 %%%%%%%%%%%%%%%%%%
 %    АБСТРАКТ    %
 %%%%%%%%%%%%%%%%%%
 
-\newpage
+    \newpage
 
 %%%%%%%%%%%%%%%%%%
 %    ВВЕДЕНИЕ    %
 %%%%%%%%%%%%%%%%%%
-\section{Введение}
-\input{introduction}
+
+
+    \section{Введение}
+    \input{introduction}
 %%%%%%%%%%%%%%%%%%
 %    ВВЕДЕНИЕ    %
 %%%%%%%%%%%%%%%%%%
 
-\newpage
+    \newpage
 
 %%%%%%%%%%%%%%%%%%
 %   ОБЗОР ЛИТРЫ  %
 %%%%%%%%%%%%%%%%%%
-\section{Обзор литературы}
-\input{literature}
+
+
+    \section{Обзор литературы}
+    \input{literature}
 %%%%%%%%%%%%%%%%%%
 %   ОБЗОР ЛИТРЫ  %
 %%%%%%%%%%%%%%%%%%
 
-\newpage
+    \newpage
+
+    ~\cite{Dou2021WordAB}
 
 %%%%%%%%%%%%%%%%%%
 % ОСНОВНАЯ ЧАСТЬ %
 %%%%%%%%%%%%%%%%%%
-\section{Основная часть}
-\input{body}
+
+
+    \section{Основная часть}
+    \input{body}
 %%%%%%%%%%%%%%%%%%
 % ОСНОВНАЯ ЧАСТЬ %
 %%%%%%%%%%%%%%%%%%
 
-\newpage
+    \newpage
 
 %%%%%%%%%%%%%%%%%%
 %   ЗАКЛЮЧЕНИЕ   %
 %%%%%%%%%%%%%%%%%%
-\section{Заключение}
-\input{conclusion}
+
+
+    \section{Заключение}
+    \input{conclusion}
 %%%%%%%%%%%%%%%%%%
 %   ЗАКЛЮЧЕНИЕ   %
 %%%%%%%%%%%%%%%%%%
 
-\newpage
+    \newpage
 
 %%%%%%%%%%%%%%%%%%
 %  СПИСОК ЛИТРЫ  %
 %%%%%%%%%%%%%%%%%%
-\section{Список литературы}
-\input{bibliography}
+
+
+    \section{Список литературы}
+    \bibliography{bibliography}
+    \bibliographystyle{plain}
 %%%%%%%%%%%%%%%%%%
 %  СПИСОК ЛИТРЫ  %
 %%%%%%%%%%%%%%%%%%
