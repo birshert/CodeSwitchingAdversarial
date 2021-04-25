@@ -129,17 +129,17 @@ dmypy.json
 .pyre/
 
 # model files
-models/*/*.pt
+*/models/*/*.pt
 
 # pycharm project
 .idea
 
 # dataset (license)
-data/atis/*
+*/data/atis/*
 
 # wandb
 wandb
 
 # aligner
-aligner/*
+*/aligner/*
 /aligner/
