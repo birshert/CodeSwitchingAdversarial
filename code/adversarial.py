@@ -28,7 +28,6 @@ def evaluate_adversarial(attacker_class, **kwargs):
     data = []
 
     for idx, row in tqdm(test.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(test)):
-
         x = row['utterance']
         y_slots = row['slot_labels']
         y_intent = row['intent']
@@ -54,11 +53,15 @@ def evaluate_adversarial(attacker_class, **kwargs):
         pin_memory=True, drop_last=False, collate_fn=dataset.collate_fn
     )
 
-    return evaluate(
+    results = evaluate(
         attacker.model, loader, fp_16=True,
         epoch=0, num_epoches=1,
         slot2idx=attacker.slot2idx, idx2slot=attacker.idx2slot
     )
+
+    results['loss'] = results.pop('loss [VALID]')
+
+    return results
 
 
 class BaseAdversarial:
@@ -73,7 +76,10 @@ class BaseAdversarial:
         self.model = model_mapping[self.config['model_name']](config=self.config)
         self.model.to(self.device, non_blocking=True)
 
-    def get_candidates(self, x, y_slots, y_intent, pos):
+    def get_candidates(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def attack(self, *args, **kwargs):
         raise NotImplementedError
 
     @torch.no_grad()
@@ -111,9 +117,24 @@ class BaseAdversarial:
         return loss[0].cpu().item()
 
 
+class Pacifist(BaseAdversarial):
+    """
+    No adversarial attack (passing examples through).
+    """
+
+    def __init__(self):
+        super(Pacifist, self).__init__()
+
+    def get_candidates(self, x, y_slots, y_intent, pos):
+        pass
+
+    def attack(self, x, y_slots, y_intent):
+        return x.split()
+
+
 class Adversarial1(BaseAdversarial):
     """
-    Simple adversarial attack based on changing tokens to their translations in set of target languages.
+    Simple adversarial attack based on changing tokens to their translations in SET of target languages.
     Token's translation is chosen in order to maximize model's loss.
     Translations are generated with dictionaries from word2word library.
     """
@@ -167,8 +188,9 @@ class Adversarial1(BaseAdversarial):
 
 class Adversarial2(Adversarial1):
     """
-    Simple adversarial attack based on changing words in random order to their translations in set of target languages,
-    that maximize model's loss.
+    Simple adversarial attack based on changing tokens to their translations in ONE target language.
+    Token's translation is chosen in order to maximize model's loss.
+    Translations are generated with dictionaries from word2word library.
     """
 
     def __init__(self, languages: list = None):
