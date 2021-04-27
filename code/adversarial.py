@@ -19,54 +19,9 @@ from utils import (
 )
 
 
-@torch.no_grad()
-def evaluate_adversarial(attacker_class, **kwargs):
-    attacker = attacker_class(**kwargs)
-
-    test = read_atis('test', ['en'])
-
-    data = []
-
-    for idx, row in tqdm(test.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(test)):
-        x = row['utterance']
-        y_slots = row['slot_labels']
-        y_intent = row['intent']
-
-        tokens, slot_labels = tokenize_and_preserve_labels(
-            attacker.model.tokenizer,
-            ' '.join(attacker.attack(x, y_slots, y_intent)),
-            y_slots,
-            attacker.slot2idx
-        )
-
-        data.append(
-            (
-                tokens,
-                slot_labels,
-                attacker.intent2idx.get(y_intent, attacker.intent2idx['UNK'])
-            )
-        )
-
-    dataset = CustomDataset(data, attacker.model.tokenizer, attacker.slot2idx)
-    loader = DataLoader(
-        dataset, shuffle=True, batch_size=8,
-        pin_memory=True, drop_last=False, collate_fn=dataset.collate_fn
-    )
-
-    results = evaluate(
-        attacker.model, loader, fp_16=True,
-        epoch=0, num_epoches=1,
-        slot2idx=attacker.slot2idx, idx2slot=attacker.idx2slot
-    )
-
-    results['loss'] = results.pop('loss [VALID]')
-
-    return results
-
-
 class BaseAdversarial:
 
-    def __init__(self):
+    def __init__(self, base_language: str = 'en'):
         self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train'))
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -76,11 +31,55 @@ class BaseAdversarial:
         self.model = model_mapping[self.config['model_name']](config=self.config)
         self.model.to(self.device, non_blocking=True)
 
+        self.base_language = base_language
+
     def get_candidates(self, *args, **kwargs):
         raise NotImplementedError
 
     def attack(self, *args, **kwargs):
         raise NotImplementedError
+
+    @torch.no_grad()
+    def attack_test(self):
+        test = read_atis('test', [self.base_language])
+
+        data = []
+
+        for idx, row in tqdm(test.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(test)):
+            x = row['utterance']
+            y_slots = row['slot_labels']
+            y_intent = row['intent']
+
+            tokens, slot_labels = tokenize_and_preserve_labels(
+                self.model.tokenizer,
+                ' '.join(self.attack(x, y_slots, y_intent)),
+                y_slots,
+                self.slot2idx
+            )
+
+            data.append(
+                (
+                    tokens,
+                    slot_labels,
+                    self.intent2idx.get(y_intent, self.intent2idx['UNK'])
+                )
+            )
+
+        dataset = CustomDataset(data, self.model.tokenizer, self.slot2idx)
+        loader = DataLoader(
+            dataset, shuffle=True, batch_size=8,
+            pin_memory=True, drop_last=False, collate_fn=dataset.collate_fn
+        )
+
+        results = evaluate(
+            self.model, loader, fp_16=True,
+            epoch=0, num_epoches=1,
+            slot2idx=self.slot2idx, idx2slot=self.idx2slot
+        )
+
+        results['loss'] = results.pop('loss [VALID]')
+
+        return results
 
     @torch.no_grad()
     def calculate_loss(self, x, y_slots, y_intent) -> float:
@@ -122,8 +121,8 @@ class Pacifist(BaseAdversarial):
     No adversarial attack (passing examples through).
     """
 
-    def __init__(self):
-        super(Pacifist, self).__init__()
+    def __init__(self, base_language: str = 'en'):
+        super().__init__(base_language)
 
     def get_candidates(self, x, y_slots, y_intent, pos):
         pass
@@ -139,12 +138,12 @@ class Adversarial1(BaseAdversarial):
     Translations are generated with dictionaries from word2word library.
     """
 
-    def __init__(self, languages: list = None):
-        super().__init__()
+    def __init__(self, base_language: str = 'en', languages: list = None):
+        super().__init__(base_language)
 
         if languages is None:
             languages = self.config['languages']
-            languages.remove('en')
+            languages.remove(self.base_language)
 
         self.languages = languages
 
@@ -193,8 +192,8 @@ class Adversarial2(Adversarial1):
     Translations are generated with dictionaries from word2word library.
     """
 
-    def __init__(self, languages: list = None):
-        super().__init__(languages)
+    def __init__(self, base_language: str = 'en', languages: list = None):
+        super().__init__(base_language, languages)
 
         self.attack_language = None
 
@@ -223,3 +222,21 @@ class Adversarial2(Adversarial1):
             pass
 
         return candidates, losses
+
+
+# class Adversarial3(BaseAdversarial):
+#
+#     def __init__(self, base_language: str = 'en', languages: list = None):
+#         super().__init__(base_language)
+#
+#         if languages is None:
+#             languages = self.config['languages']
+#             languages.remove(self.base_language)
+#
+#         self.languages = languages
+#
+#         self.alignments =
+#
+#     def attack(self, *args, **kwargs):
+#
+#     def get_candidates(self, *args, **kwargs):
