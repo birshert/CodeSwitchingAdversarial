@@ -11,12 +11,12 @@ languages:
 - pt
 - zh_cn
 learning_rate: 1.0e-05
-load_checkpoint: false
+load_checkpoint: true
 load_pretrained: false
 log_interval: 50
 log_metrics: true
 model_name: m-bert
-num_epoches: 20
+num_epoches: 10
 num_intent_labels: 23
 num_slot_labels: 143
 slot_coef: 1.0
