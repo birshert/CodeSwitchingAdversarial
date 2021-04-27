@@ -6,28 +6,39 @@ from transformers import (
     XLMRobertaConfig,
     XLMRobertaModel,
     XLMRobertaTokenizerFast,
+    BertModel,
+    BertConfig,
+    BertTokenizerFast,
 )
 
 
-class XLMRoberta(nn.Module):
+mapping = {
+    'xlm-r': (XLMRobertaModel, XLMRobertaConfig, XLMRobertaTokenizerFast),
+    'm-bert': (BertModel, BertConfig, BertTokenizerFast)
+}
+
+
+class BaseModel(nn.Module):
 
     def __init__(self, config: dict):
-        super(XLMRoberta, self).__init__()
+        super().__init__()
 
         self.num_intent_labels = config['num_intent_labels']
         self.num_slot_labels = config['num_slot_labels']
 
+        model_class, config_class, tokenizer_class = mapping[self.__model_name__]
+
         if config['load_pretrained']:
-            self.model = XLMRobertaModel.from_pretrained(self.__parent_name__)
-            self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(self.__parent_name__)
+            self.model = model_class.from_pretrained(self.__parent_name__)
+            self.tokenizer = tokenizer_class.from_pretrained(self.__parent_name__)
         else:
             if os.path.exists(f'models/{self.__model_name__}'):
-                model_config = XLMRobertaConfig.from_json_file(f'models/{self.__model_name__}/config.json')
+                model_config = config_class.from_json_file(f'models/{self.__model_name__}/config.json')
             else:
-                model_config = XLMRobertaConfig.from_pretrained(self.__parent_name__)
+                model_config = config_class.from_pretrained(self.__parent_name__)
 
-            self.model = XLMRobertaModel(config=model_config)
-            self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(f'models/{self.__model_name__}/')
+            self.model = model_class(config=model_config)
+            self.tokenizer = tokenizer_class.from_pretrained(f'models/{self.__model_name__}/')
 
         self.intent_classifier = Classifier(self.model.config.hidden_size, self.num_intent_labels, config['dropout'])
         self.slot_classifier = Classifier(self.model.config.hidden_size, self.num_slot_labels, config['dropout'])
@@ -42,11 +53,11 @@ class XLMRoberta(nn.Module):
 
     @property
     def __model_name__(self):
-        return 'xlm-r'
+        raise NotImplementedError
 
     @property
     def __parent_name__(self):
-        return 'xlm-roberta-base'
+        raise NotImplementedError
 
     def forward(self, input_ids, intent_label_ids, slot_labels_ids, attention_mask=None):
         outputs = self.model(input_ids, attention_mask=attention_mask)
@@ -80,6 +91,34 @@ class XLMRoberta(nn.Module):
             raise OSError('Path does not exist, model cannot be loaded')
 
         self.load_state_dict(torch.load(f'models/{self.__model_name__}/model.pt'))
+
+
+class XLMRoberta(BaseModel):
+
+    def __init__(self, config: dict):
+        super().__init__(config)
+
+    @property
+    def __model_name__(self):
+        return 'xlm-r'
+
+    @property
+    def __parent_name__(self):
+        return 'xlm-roberta-base'
+
+
+class MBERT(BaseModel):
+
+    def __init__(self, config: dict):
+        super().__init__(config)
+
+    @property
+    def __model_name__(self):
+        return 'm-bert'
+
+    @property
+    def __parent_name__(self):
+        return 'bert-base-multilingual-cased'
 
 
 class Classifier(nn.Module):

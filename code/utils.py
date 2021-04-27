@@ -10,11 +10,15 @@ from seqeval.metrics import (
     recall_score,
 )
 
-from model import XLMRoberta
+from model import (
+    XLMRoberta,
+    MBERT,
+)
 
 
 model_mapping = {
     'xlm-r': XLMRoberta,
+    'm-bert': MBERT
 }
 
 
