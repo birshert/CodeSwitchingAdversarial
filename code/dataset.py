@@ -12,6 +12,8 @@ from utils import (
     tokenize_and_preserve_labels,
 )
 
+from model import BaseModel
+
 
 def read_atis(subset: str, languages: list = None):
     if languages is None:
@@ -71,11 +73,13 @@ class CustomDataset(Dataset):
         }
 
 
-def prepare_datasets(tokenizer):
-    if os.path.exists('data/cached'):
-        train_dataset = torch.load('data/cached/train.pt')
-        test_dataset = torch.load('data/cached/test.pt')
-        slot2idx, idx2slot = torch.load('data/cached/misc.pt')
+def prepare_datasets(model: BaseModel):
+    cached_path = f'data/cached_{model.__model_name__}'
+
+    if os.path.exists(cached_path):
+        train_dataset = torch.load(cached_path + '/train.pt')
+        test_dataset = torch.load(cached_path + '/test.pt')
+        slot2idx, idx2slot = torch.load(cached_path + '/misc.pt')
 
         return train_dataset, test_dataset, slot2idx, idx2slot
 
@@ -87,21 +91,21 @@ def prepare_datasets(tokenizer):
     train_data = []
 
     for index, row in train.iterrows():
-        tokens, slot_labels = tokenize_and_preserve_labels(tokenizer, row['utterance'], row['slot_labels'], slot2idx)
+        tokens, slot_labels = tokenize_and_preserve_labels(model.tokenizer, row['utterance'], row['slot_labels'], slot2idx)
         train_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
 
     test_data = []
 
     for index, row in test.iterrows():
-        tokens, slot_labels = tokenize_and_preserve_labels(tokenizer, row['utterance'], row['slot_labels'], slot2idx)
+        tokens, slot_labels = tokenize_and_preserve_labels(model.tokenizer, row['utterance'], row['slot_labels'], slot2idx)
         test_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
 
-    train_dataset = CustomDataset(train_data, tokenizer, slot2idx)
-    test_dataset = CustomDataset(test_data, tokenizer, slot2idx)
+    train_dataset = CustomDataset(train_data, model.tokenizer, slot2idx)
+    test_dataset = CustomDataset(test_data, model.tokenizer, slot2idx)
 
-    os.mkdir('data/cached')
-    torch.save(train_dataset, f'data/cached/train.pt')
-    torch.save(test_dataset, f'data/cached/test.pt')
-    torch.save((slot2idx, idx2slot), 'data/cached/misc.pt')
+    os.mkdir(cached_path)
+    torch.save(train_dataset, cached_path + '/train.pt')
+    torch.save(test_dataset, cached_path + '/test.pt')
+    torch.save((slot2idx, idx2slot), cached_path + '/misc.pt')
 
     return train_dataset, test_dataset, slot2idx, idx2slot

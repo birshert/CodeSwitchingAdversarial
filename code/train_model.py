@@ -102,7 +102,7 @@ def main():
     model = model_mapping[wandb.config['model_name']](config=wandb.config)
     model.to(device, non_blocking=True)
 
-    train_dataset, test_dataset, slot2idx, idx2slot = prepare_datasets(model.tokenizer)
+    train_dataset, test_dataset, slot2idx, idx2slot = prepare_datasets(model)
 
     train_loader = DataLoader(
         train_dataset, shuffle=True, batch_size=wandb.config['batch_size'],
