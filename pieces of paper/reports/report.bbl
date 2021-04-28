@@ -1,8 +1,0 @@
-\begin{thebibliography}{1}
-
-\bibitem{Dou2021WordAB}
-Zi-Yi Dou and Graham Neubig.
-\newblock Word alignment by fine-tuning embeddings on parallel corpora.
-\newblock In {\em EACL}, 2021.
-
-\end{thebibliography}

@@ -146,3 +146,11 @@ wandb
 
 # aligned
 *.src
+
+# tex outputs
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex*
+*.toc
