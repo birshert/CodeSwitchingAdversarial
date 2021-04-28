@@ -1,0 +1,180 @@
+\newcommand{\ind}{\hspace{\algorithmicindent}}
+
+\subsection{Общий вид атаки}
+
+\begin{algorithm}
+    \caption{Adversarial attack}
+    \begin{algorithmic}
+        \Require{Пара пример-метка $x, y$; целевая модель $\mathcal{M}$; набор встраиваемых языков $\mathbb{L}$}
+        \Ensure{Адверсариальный пример $x'$} \\
+        $\mathcal{L}_{x} = GetLoss(\mathcal{M}, x, y)$
+        \For{i in permutation(len(x))}
+            \\
+            \ind Candidates, Losses = GetCandidates($\mathcal{M}, x, y$, token\_id = i)
+            \ind\If{Candidates is not None and max(Losses) > $L_{x}$}
+                    \\
+                    \ind\ind$L_{x}$ = max(Losses) \\
+                    \ind\ind x[i] = Candidates[argmax(Losses)]
+            \EndIf
+        \EndFor \\
+        \Return $x$
+    \end{algorithmic}\label{alg:algorithm}
+\end{algorithm}
+
+\subsection{Первый метод - word level attack}
+В качестве первой атаки была выбрана атака на уровне слов
+по аналогии с атакой PolyGloss из ~\cite{Tan2021CodeMixingOS}.
+Для перевода используются словари из статьи ~\cite{Choe2020word2wordAC}.
+
+\begin{algorithm}
+    \caption{Word-level attack}
+    \begin{algorithmic}
+        \Require{Набор словарей с исходного на встраиваемые языки $\mathbb{T}$}
+        \Function{GetCandidates}{$\mathcal{M}, x, y$, token\_id}
+            \\
+            \ind Candidates, Losses = [~], [~]\\
+            \ind$x_c$ = copy($x$)
+            \For{language in $\mathbb{L}$}
+                \ind\If{x[token\_id] in $\mathbb{T}$[language]}
+                        \\
+                        \ind\ind\ind token = $\mathbb{T}$[language][x[token\_id]]\\
+                        \ind\ind\ind Candidates.append(token)\\
+                        \ind\ind\ind $x_c$[token\_id] = token\\
+                        \ind\ind\ind Losses.append(GetLoss($\mathcal{M}, x_c, y$))
+                \EndIf
+            \EndFor \\
+            \Return Candidates, Losses
+        \EndFunction
+    \end{algorithmic}\label{alg:algorithm1}
+\end{algorithm}
+
+\newpage
+
+\subsection{Второй метод - phrase level attack}
+В качестве второй атаки была выбрана атака на уровне фраз с использованием выравниваний
+по аналогии с атакой Bumblebee из ~\cite{Tan2021CodeMixingOS}.
+Для построения выравниваний между предложениями используется метод, описанный в статье ~\cite{Dou2021WordAB}.
+
+\begin{algorithm}
+    \caption{Phrase-level attack}
+    \begin{algorithmic}
+        \Require{Выравнивание предложений с исходного на встраиваемые языки $\mathbb{A}$}
+        \Function{GetCandidates}{$\mathcal{M}, x, y$, token\_id}
+            \\
+            \ind Candidates, Losses = [~], [~]\\
+            \ind$x_c$ = copy($x$)
+            \For{language in $\mathbb{L}$}
+                \ind\If{token\_id in $\mathbb{A}$[language]}
+                        \\
+                        \ind\ind\ind tokens = $\mathbb{A}$[language][token\_id]\\
+                        \ind\ind\ind Candidates.append(tokens)\\
+                        \ind\ind\ind $x_c$[token\_id] = tokens\\
+                        \ind\ind\ind $y_{slots}$[token\_id] = ExtendLabels($y_{slots}$[token\_id], tokens)\\
+                        \ind\ind\ind Losses.append(GetLoss($\mathcal{M}, x_c, y$))
+                \EndIf
+            \EndFor \\
+            \Return Candidates, Losses
+        \EndFunction
+    \end{algorithmic}\label{alg:algorithm2}
+\end{algorithm}
+
+\subsection{Третий метод - slots chunk-level attack}
+В качестве третьего варианта атаки можно выбрать атаку по методу из статьи ~\cite{Krishnan2021MultilingualCF}.
+
+\subsection{Полученные результаты}
+На данный момент обучено две мультиязычные модели - XLM-Roberta ~\cite{Conneau2020UnsupervisedCR} и M-BERT ~\cite{Devlin2019BERTPO}.
+Модели обучены на обучающей выборке датасета ATIS - Seven languages ~\cite{Xu2020EndtoEndSA}.
+На каждую из этих моделей проведено несколько адверсариальных атак с использованием первого и второго методов атак.
+Дальнейшая работа состоит в анализе полученных результатов атак.
+
+\begin{table}[H]
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|c|c|}
+            \hline
+            & No attack & Word level {[}all{]} & Word level {[}de{]} & Word level {[}es{]} & Word level {[}fr{]}
+            & Word level {[}ja{]}
+            & Word level {[}pt{]}
+            & Word level {[}zh\_cn{]}
+            \\
+            \hline
+            intent\_acc          & 0.963 & 0.307   & 0.635  & 0.693  & 0.733  & 0.648  & 0.757  & 0.647  \\
+            slot\_precision      & 0.947 & 0.125   & 0.48   & 0.444  & 0.496  & 0.306  & 0.46   & 0.515  \\
+            slot\_recall         & 0.942 & 0.101   & 0.438  & 0.359  & 0.484  & 0.346  & 0.427  & 0.543  \\
+            slot\_f1             & 0.944 & 0.112   & 0.458  & 0.397  & 0.49   & 0.325  & 0.443  & 0.528  \\
+            sementic\_frame\_acc & 0.76  & 0.0     & 0.039  & 0.017  & 0.024  & 0.007  & 0.021  & 0.047  \\
+            loss                 & 0.477 & 11.537  & 4.791  & 4.823  & 4.401  & 5.76   & 3.941  & 5.075  \\
+            time                 & 1.793 & 349.559 & 63.845 & 65.729 & 63.149 & 69.834 & 62.836 & 66.602 \\
+            \hline
+        \end{tabular}%
+    }\caption{Результаты для модели XLM-R для атаки word-level attack}
+    \label{tab:table1}
+\end{table}
+
+\begin{table}[H]
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|c|c|}
+            \hline
+            & No attack & Word level {[}ALL{]} & Word level {[}de{]} & Word level {[}es{]} & Word level {[}fr{]}
+            & Word level {[}ja{]}
+            & Word level {[}pt{]}
+            & Word level {[}zh\_cn{]}
+            \\
+            \hline
+            intent\_acc          & 0.964 & 0.255   & 0.684  & 0.731  & 0.728  & 0.633  & 0.75   & 0.652  \\
+            slot\_precision      & 0.943 & 0.13    & 0.406  & 0.416  & 0.479  & 0.374  & 0.437  & 0.551  \\
+            slot\_recall         & 0.939 & 0.105   & 0.388  & 0.369  & 0.501  & 0.351  & 0.414  & 0.574  \\
+            slot\_f1             & 0.941 & 0.116   & 0.397  & 0.391  & 0.49   & 0.362  & 0.425  & 0.563  \\
+            sementic\_frame\_acc & 0.766 & 0.0     & 0.013  & 0.016  & 0.028  & 0.013  & 0.015  & 0.069  \\
+            loss                 & 0.42  & 11.143  & 4.633  & 4.238  & 3.945  & 5.552  & 3.72   & 4.267  \\
+            time                 & 1.78  & 341.357 & 62.362 & 63.954 & 61.017 & 66.358 & 60.998 & 63.967 \\
+            \hline
+        \end{tabular}%
+    }\caption{Результаты для модели M-BERT для атаки word-level attack}
+    \label{tab:table2}
+\end{table}
+
+\begin{table}[H]
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|c|c|}
+            \hline
+            & No attack & Alignments {[}ALL{]} & Alignments {[}de{]} & Alignments {[}es{]} & Alignments {[}fr{]}
+            & Alignments {[}ja{]}
+            & Alignments {[}pt{]}
+            & Alignments {[}zh\_cn{]}
+            \\
+            \hline
+            intent\_acc          & 0.963 & 0.821   & 0.918  & 0.885  & 0.896  & 0.887  & 0.876  & 0.884  \\
+            slot\_precision      & 0.947 & 0.379   & 0.739  & 0.711  & 0.667  & 0.374  & 0.718  & 0.496  \\
+            slot\_recall         & 0.942 & 0.483   & 0.756  & 0.696  & 0.698  & 0.498  & 0.736  & 0.673  \\
+            slot\_f1             & 0.944 & 0.425   & 0.747  & 0.703  & 0.683  & 0.427  & 0.727  & 0.571  \\
+            sementic\_frame\_acc & 0.76  & 0.086   & 0.382  & 0.281  & 0.3    & 0.067  & 0.354  & 0.169  \\
+            loss                 & 0.475 & 5.366   & 1.958  & 2.053  & 2.403  & 4.51   & 2.193  & 3.26   \\
+            time                 & 1.437 & 351.768 & 66.849 & 69.736 & 69.263 & 56.668 & 69.087 & 68.256 \\
+            \hline
+        \end{tabular}%
+    }\caption{Результаты для модели XLM-R для атаки phrase-level attack}
+    \label{tab:table3}
+\end{table}
+
+\begin{table}[H]
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|c|c|}
+            \hline
+            & No attack & Alignments {[}ALL{]} & Alignments {[}de{]} & Alignments {[}es{]} & Alignments {[}fr{]}
+            & Alignments {[}ja{]}
+            & Alignments {[}pt{]}
+            & Alignments {[}zh\_cn{]}
+            \\
+            \hline
+            intent\_acc          & 0.964 & 0.832   & 0.922  & 0.906  & 0.909  & 0.898  & 0.904  & 0.892  \\
+            slot\_precision      & 0.943 & 0.365   & 0.716  & 0.704  & 0.659  & 0.368  & 0.707  & 0.482  \\
+            slot\_recall         & 0.939 & 0.447   & 0.731  & 0.7    & 0.682  & 0.466  & 0.72   & 0.66   \\
+            slot\_f1             & 0.941 & 0.402   & 0.723  & 0.702  & 0.67   & 0.411  & 0.713  & 0.557  \\
+            sementic\_frame\_acc & 0.766 & 0.063   & 0.365  & 0.265  & 0.283  & 0.058  & 0.363  & 0.159  \\
+            loss                 & 0.424 & 4.856   & 1.836  & 1.772  & 2.062  & 4.033  & 1.98   & 2.911  \\
+            time                 & 1.405 & 345.974 & 65.046 & 67.657 & 67.118 & 55.104 & 65.252 & 62.554 \\
+            \hline
+        \end{tabular}%
+    }\caption{Результаты для модели M-BERT для атаки phrase-level attack}
+    \label{tab:table4}
+\end{table}

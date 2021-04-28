@@ -1,0 +1,144 @@
+% Preamble
+\documentclass[a4paper, 12pt]{article}
+
+% Packages
+\usepackage{geometry}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{colortbl}
+\usepackage{tikz}
+\usepackage{pgf}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage[colorlinks, linkcolor=blue, urlcolor=blue]{hyperref}
+\usepackage{cite}
+\usepackage{indentfirst}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+}
+\urlstyle{same}
+
+\usepackage{algorithm}
+\usepackage{amsfonts}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+
+
+\usepackage{booktabs}
+\usepackage{longtable}
+
+\geometry{left=2.5cm}  % левое поле
+\geometry{right=1.5cm}  % правое поле
+\geometry{top=1.5cm}  % верхнее поле
+\geometry{bottom=1.5cm}  % нижнее поле
+\renewcommand{\baselinestretch}{1.5}  % междустрочный интервал
+
+\renewcommand{\theenumi}{\arabic{enumi}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\labelenumi}{\arabic{enumi}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\theenumii}{.\arabic{enumii}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\labelenumii}{\arabic{enumi}.\arabic{enumii}.}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\theenumiii}{.\arabic{enumiii}}  % Меняем везде перечисления на цифра.цифра
+\renewcommand{\labelenumiii}{\arabic{enumi}.\arabic{enumii}.\arabic{enumiii}.}  % Меняем везде перечисления на цифра.цифра
+
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+% Document
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%
+% ТИТУЛЬНЫЙ ЛИСТ %
+%%%%%%%%%%%%%%%%%%
+    \input{title}
+%%%%%%%%%%%%%%%%%%
+% ТИТУЛЬНЫЙ ЛИСТ %
+%%%%%%%%%%%%%%%%%%
+
+    \newpage
+
+%%%%%%%%%%%%%%%%%%
+%   ОГЛАВЛЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+    {
+        \hypersetup{linkcolor=black}
+        \tableofcontents
+    }
+%%%%%%%%%%%%%%%%%%
+%   ОГЛАВЛЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+
+    \newpage
+
+%%%%%%%%%%%%%%%%%%
+%    ВВЕДЕНИЕ    %
+%%%%%%%%%%%%%%%%%%
+
+
+    \section{Введение}
+    \input{introduction}
+%%%%%%%%%%%%%%%%%%
+%    ВВЕДЕНИЕ    %
+%%%%%%%%%%%%%%%%%%
+
+    \newpage
+
+%%%%%%%%%%%%%%%%%%
+%   ОБЗОР ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+
+
+    \section{Обзор литературы}
+    \input{literature}
+%%%%%%%%%%%%%%%%%%
+%   ОБЗОР ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+
+    \newpage
+
+%%%%%%%%%%%%%%%%%%
+% ОСНОВНАЯ ЧАСТЬ %
+%%%%%%%%%%%%%%%%%%
+
+
+    \section{Описание методов}
+    \input{body}
+%%%%%%%%%%%%%%%%%%
+% ОСНОВНАЯ ЧАСТЬ %
+%%%%%%%%%%%%%%%%%%
+
+    \newpage
+
+%%%%%%%%%%%%%%%%%%
+%   ЗАКЛЮЧЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+
+
+    \section{Заключение}
+    \input{conclusion}
+%%%%%%%%%%%%%%%%%%
+%   ЗАКЛЮЧЕНИЕ   %
+%%%%%%%%%%%%%%%%%%
+
+    \newpage
+
+%%%%%%%%%%%%%%%%%%
+%  СПИСОК ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+
+
+    \bibliography{bibliography}
+    \bibliographystyle{plain}
+%%%%%%%%%%%%%%%%%%
+%  СПИСОК ЛИТРЫ  %
+%%%%%%%%%%%%%%%%%%
+
+\end{document}
