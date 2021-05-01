@@ -34,6 +34,7 @@ def evaluate(model, dataloader, p_bar=None, **kwargs):
     model.eval()
 
     total_loss = 0
+    perplexity = 0
 
     slot_preds = []
     intent_preds = torch.tensor([])
@@ -53,6 +54,7 @@ def evaluate(model, dataloader, p_bar=None, **kwargs):
             loss, intent_logits, slot_logits = model(**batch)
 
             total_loss += loss.item()
+            perplexity += loss.exp().item()
 
         slot_preds.extend(slot_logits.cpu())
         intent_preds = torch.cat((intent_preds, intent_logits.cpu()))
@@ -82,7 +84,8 @@ def evaluate(model, dataloader, p_bar=None, **kwargs):
                 slot_preds_list[i].append(kwargs['idx2slot'][slot_preds[i, j]])
 
     results = {
-        'loss [VALID]': total_loss / len(dataloader)
+        'loss [VALID]': total_loss / len(dataloader),
+        'perplexity': perplexity / len(dataloader)
     }
 
     results.update(compute_metrics(intent_preds, intent_true, slot_preds_list, slot_true_list))
