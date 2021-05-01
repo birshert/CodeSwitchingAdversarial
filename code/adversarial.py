@@ -157,7 +157,7 @@ class AdversarialWordLevel(BaseAdversarial):
 
         self.languages = languages
 
-        self.translators = {lang: Word2word('en', lang) for lang in languages}
+        self.translators = {lang: Word2word(self.base_language, lang) for lang in languages}
 
         self.rng = np.random.default_rng()
 

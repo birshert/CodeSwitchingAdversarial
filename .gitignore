@@ -151,6 +151,6 @@ wandb
 *.aux
 *.bbl
 *.blg
-*.out
+*/reports/*/*.out
 *.synctex*
 *.toc
