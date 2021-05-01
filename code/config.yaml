@@ -1,4 +1,4 @@
-batch_size: 8
+batch_size: 16
 dropout: 0.1
 fp-16: true
 ignore_index: 0
@@ -11,11 +11,11 @@ languages:
 - pt
 - zh_cn
 learning_rate: 1.0e-05
-load_checkpoint: true
+load_checkpoint: false
 load_pretrained: false
 log_interval: 50
 log_metrics: true
-model_name: xlm-r
+model_name: m-bert
 num_epoches: 10
 num_intent_labels: 23
 num_slot_labels: 143

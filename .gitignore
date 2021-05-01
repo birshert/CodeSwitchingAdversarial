@@ -141,8 +141,8 @@ dmypy.json
 wandb
 
 # aligner
-*/awesome-align/*
-/aligner/
+awesome-align
+aligner
 
 # aligned
 *.src

@@ -32,6 +32,7 @@ class BaseAdversarial:
         self.config = load_config()
 
         self.model = model_mapping[self.config['model_name']](config=self.config)
+        self.model.load()
         self.model.eval()
         self.model.to(self.device, non_blocking=True)
 

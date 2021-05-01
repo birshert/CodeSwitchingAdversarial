@@ -99,7 +99,7 @@ def main():
 
     log = True
 
-    wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
+    wandb.init(project='diploma', entity='birshert', mode='offline' if log else 'disabled', save_code=True)
     wandb.config.update(load_config())
 
     model = model_mapping[wandb.config['model_name']](config=wandb.config)
