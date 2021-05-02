@@ -23,18 +23,13 @@ def read_atis(subset: str, languages: list = None):
 
     for language in languages:
         df = pd.read_csv(
-            f'data/atis/{subset}/{subset}_{language}.tsv',
-            delimiter='\t',
-            index_col='id'
+            f'data/atis/{subset}/{subset}_{language}.csv',
+            index_col=0
         )
         df['language'] = language
         df['uuid'] = np.arange(len(df))
         result = pd.concat((result, df))
 
-    result['len1'] = result['utterance'].str.split().apply(len)
-    result['len2'] = result['slot_labels'].str.split().apply(len)
-
-    result = result.loc[result['len1'] == result['len2']]
     result.reset_index(drop=True, inplace=True)
 
     return result
