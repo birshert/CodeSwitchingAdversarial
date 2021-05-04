@@ -76,7 +76,7 @@ class BaseAdversarial:
 
         dataset = CustomDataset(data, self.model.tokenizer, self.slot2idx)
         loader = DataLoader(
-            dataset, shuffle=True, batch_size=8,
+            dataset, shuffle=False, batch_size=8,
             pin_memory=True, drop_last=False, collate_fn=dataset.collate_fn
         )
 
