@@ -1,25 +1,22 @@
+from collections import defaultdict
 from copy import deepcopy
+from time import time
 
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from word2word import Word2word
-from collections import defaultdict
 
-from dataset import (
-    CustomDataset,
-    read_atis,
-)
-from train_model import evaluate
-from utils import (
-    create_mapping,
-    load_config,
-    model_mapping,
-    tokenize_and_preserve_labels,
-)
-
-from time import time
+from dataset import CustomJointDataset
+from dataset import JointCollator
+from dataset import read_atis
+from train_joint_model import evaluate
+from utils import create_mapping
+from utils import load_config
+from utils import model_mapping
+from utils import tokenize_and_preserve_labels
 
 
 class BaseAdversarial:
@@ -46,8 +43,8 @@ class BaseAdversarial:
         raise NotImplementedError
 
     @torch.no_grad()
-    def attack_test(self):
-        test = read_atis('test', [self.base_language])
+    def attack_dataset(self, subset: str = 'test'):
+        dataset = read_atis(subset, [self.base_language])
 
         data = []
 
@@ -55,7 +52,7 @@ class BaseAdversarial:
 
         perplexity = 0
 
-        for idx, row in tqdm(test.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(test)):
+        for idx, row in tqdm(dataset.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)):
             x = row['utterance']
             y_slots = row['slot_labels']
             y_intent = row['intent']
@@ -79,10 +76,10 @@ class BaseAdversarial:
                     )
                 )
 
-        dataset = CustomDataset(data, self.model.tokenizer, self.slot2idx)
+        data = CustomJointDataset(data, self.model.tokenizer, self.slot2idx)
         loader = DataLoader(
-            dataset, shuffle=False, batch_size=8,
-            pin_memory=True, drop_last=False, collate_fn=dataset.collate_fn
+            data, shuffle=False, batch_size=8,
+            pin_memory=True, drop_last=False, collate_fn=JointCollator
         )
 
         results = evaluate(
@@ -91,7 +88,7 @@ class BaseAdversarial:
         )
 
         results['loss'] = results.pop('loss [VALID]')
-        results['perplexity'] = perplexity / (len(test) * self.num_examples)
+        results['perplexity'] = perplexity / (len(dataset) * self.num_examples)
         results['time'] = time() - starting_time
 
         return results
@@ -160,7 +157,10 @@ class AdversarialWordLevel(BaseAdversarial):
 
         if languages is None:
             languages = self.config['languages']
+        try:
             languages.remove(self.base_language)
+        except ValueError:
+            pass
 
         self.languages = languages
 
@@ -222,20 +222,24 @@ def mapping_alignments(lines, data):
 
 class AdversarialAlignments(BaseAdversarial):
 
-    def __init__(self, base_language: str = 'en', languages: list = None):
+    def __init__(self, base_language: str = 'en', languages: list = None, subset: str = 'test'):
         super().__init__(base_language)
 
         if languages is None:
             languages = self.config['languages']
+        try:
             languages.remove(self.base_language)
+        except ValueError:
+            pass
 
         self.languages = languages
 
         self.alignments = {}
 
         for language in self.languages:
-            with open(f'data/alignment/{self.base_language}_{language}.out') as f:
-                self.alignments[language] = mapping_alignments(f.readlines(), read_atis('test', [language])['utterance'])
+            with open(f'data/atis_{subset}_alignment/{self.base_language}_{language}.out') as f:
+                self.alignments[language] = mapping_alignments(f.readlines(),
+                                                               read_atis(subset, [language])['utterance'])
 
         self.rng = np.random.default_rng()
 
@@ -284,16 +288,16 @@ class AdversarialAlignments(BaseAdversarial):
         return candidates, losses
 
     @torch.no_grad()
-    def attack_test(self):
-        test = read_atis('test', [self.base_language])
+    def attack_dataset(self, subset: str = 'test'):
+        dataset = read_atis(subset, [self.base_language])
 
         data = []
 
-        perplexity = 0
-
         starting_time = time()
 
-        for idx, row in tqdm(test.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(test)):
+        perplexity = 0
+
+        for idx, row in tqdm(dataset.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)):
             x = row['utterance']
             y_slots = row['slot_labels']
             y_intent = row['intent']
@@ -319,10 +323,10 @@ class AdversarialAlignments(BaseAdversarial):
                     )
                 )
 
-        dataset = CustomDataset(data, self.model.tokenizer, self.slot2idx)
+        data = CustomJointDataset(data, self.model.tokenizer, self.slot2idx)
         loader = DataLoader(
-            dataset, shuffle=True, batch_size=8,
-            pin_memory=True, drop_last=False, collate_fn=dataset.collate_fn
+            data, shuffle=True, batch_size=8,
+            pin_memory=True, drop_last=False, collate_fn=JointCollator
         )
 
         results = evaluate(
@@ -331,7 +335,81 @@ class AdversarialAlignments(BaseAdversarial):
         )
 
         results['loss'] = results.pop('loss [VALID]')
-        results['perplexity'] = perplexity / (len(test) * self.num_examples)
+        results['perplexity'] = perplexity / (len(dataset) * self.num_examples)
         results['time'] = time() - starting_time
 
         return results
+
+
+class RandomAdversarialAlignments(AdversarialAlignments):
+
+    def __init__(self, base_language: str = 'en', languages: list = None, subset: str = 'test', num_examples: int = 10):
+        super().__init__(base_language, languages, subset)
+
+        self.num_examples = num_examples
+
+    @torch.no_grad()
+    def attack_dataset(self, subset: str = 'test'):
+        dataset = read_atis(subset, [self.base_language])
+
+        data = []
+
+        for idx, row in tqdm(dataset.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)):
+            x = row['utterance']
+            y_slots = row['slot_labels']
+            y_intent = row['intent']
+
+            alignments = {language: self.alignments[language][idx] for language in self.languages}
+
+            for _ in range(self.num_examples):
+                example = self.attack(x, y_slots, y_intent, alignments)
+
+                data.append(
+                    {
+                        'utterance': ' '.join(example),
+                        'slot_labels': y_slots,
+                        'intent': y_intent
+                    }
+                )
+
+        return pd.DataFrame.from_dict(data)
+
+    def attack(self, x, y_slots, y_intent, alignments):
+        if isinstance(x, str):
+            x = x.split()
+
+        if isinstance(y_slots, str):
+            y_slots = y_slots.split()
+
+        for pos in self.rng.permutation(len(x)):
+            candidates = self.get_candidates(x, y_slots, y_intent, pos, alignments)
+
+            if candidates and self.rng.normal() > 0:
+                x[pos] = np.random.choice(candidates)
+
+        return x
+
+    def get_candidates(self, x, y_slots, y_intent, pos, alignments):
+        xc = deepcopy(x)
+        y_slots_c = deepcopy(y_slots)
+
+        candidates = []
+
+        for lang in self.languages:
+            try:
+                tokens = alignments[lang][pos]
+
+                if len(tokens) > 1:
+                    if y_slots[pos].startswith('B'):
+                        new_slot_label = 'I' + y_slots[pos][1:]
+                        y_slots_c[pos] = y_slots[pos] + ' '.join(new_slot_label for _ in range(len(tokens) - 1))
+                    else:
+                        y_slots_c[pos] = ' '.join(y_slots[pos] for _ in range(len(tokens)))
+
+                xc[pos] = ' '.join(tokens)
+
+                candidates.append(' '.join(tokens))
+            except KeyError:
+                pass
+
+        return candidates
