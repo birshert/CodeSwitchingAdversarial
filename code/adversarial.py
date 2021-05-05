@@ -53,15 +53,20 @@ class BaseAdversarial:
 
         starting_time = time()
 
+        perplexity = 0
+
         for idx, row in tqdm(test.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(test)):
             x = row['utterance']
             y_slots = row['slot_labels']
             y_intent = row['intent']
 
             for _ in range(self.num_examples):
+                example, loss = self.attack(x, y_slots, y_intent)
+                perplexity += np.exp(loss)
+
                 tokens, slot_labels = tokenize_and_preserve_labels(
                     self.model.tokenizer,
-                    ' '.join(self.attack(x, y_slots, y_intent)),
+                    ' '.join(example),
                     y_slots,
                     self.slot2idx
                 )
@@ -86,6 +91,7 @@ class BaseAdversarial:
         )
 
         results['loss'] = results.pop('loss [VALID]')
+        results['perplexity'] = perplexity / (len(test) * self.num_examples)
         results['time'] = time() - starting_time
 
         return results
@@ -120,9 +126,9 @@ class BaseAdversarial:
             device=self.device
         )
 
-        loss = self.model(input_ids, intent, slot_labels, attention_mask)
+        loss = self.model(input_ids, intent, slot_labels, attention_mask)[0]
 
-        return loss[0].cpu().item()
+        return loss.cpu().item()
 
 
 class Pacifist(BaseAdversarial):
@@ -139,7 +145,7 @@ class Pacifist(BaseAdversarial):
         pass
 
     def attack(self, x, y_slots, y_intent):
-        return x.split()
+        return x.split(), self.calculate_loss(x, y_slots, y_intent)
 
 
 class AdversarialWordLevel(BaseAdversarial):
@@ -178,7 +184,7 @@ class AdversarialWordLevel(BaseAdversarial):
                 current_loss = np.max(losses)
                 x[pos] = candidates[np.argmax(losses)]
 
-        return x
+        return x, current_loss
 
     def get_candidates(self, x, y_slots, y_intent, pos):
         xc = deepcopy(x)
@@ -249,7 +255,7 @@ class AdversarialAlignments(BaseAdversarial):
                 current_loss = np.max(losses)
                 x[pos] = candidates[np.argmax(losses)]
 
-        return x
+        return x, current_loss
 
     def get_candidates(self, x, y_slots, y_intent, pos, alignments):
         xc = deepcopy(x)
@@ -283,6 +289,8 @@ class AdversarialAlignments(BaseAdversarial):
 
         data = []
 
+        perplexity = 0
+
         starting_time = time()
 
         for idx, row in tqdm(test.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(test)):
@@ -293,9 +301,12 @@ class AdversarialAlignments(BaseAdversarial):
             alignments = {language: self.alignments[language][idx] for language in self.languages}
 
             for _ in range(self.num_examples):
+                example, loss = self.attack(x, y_slots, y_intent, alignments)
+                perplexity += np.exp(loss)
+
                 tokens, slot_labels = tokenize_and_preserve_labels(
                     self.model.tokenizer,
-                    ' '.join(self.attack(x, y_slots, y_intent, alignments)),
+                    ' '.join(example),
                     y_slots,
                     self.slot2idx
                 )
@@ -320,6 +331,7 @@ class AdversarialAlignments(BaseAdversarial):
         )
 
         results['loss'] = results.pop('loss [VALID]')
+        results['perplexity'] = perplexity / (len(test) * self.num_examples)
         results['time'] = time() - starting_time
 
         return results

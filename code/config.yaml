@@ -1,4 +1,4 @@
-batch_size: 16
+batch_size: 8
 dropout: 0.1
 fp-16: true
 ignore_index: 0
