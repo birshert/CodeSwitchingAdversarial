@@ -16,17 +16,25 @@ mapping = {
 }
 
 
-class BaseJointModel(nn.Module):
+class BaseModel(nn.Module):
+    """
+    Base class for all models utilized in the project.
+
+    Implements common initializing and saving/loading routines.
+    """
 
     def __init__(self, config: dict):
+        """
+        Initializing model object with backbone model and tokenizer.
+        :param config: all arguments in a dict.
+        """
         super().__init__()
 
-        self.num_intent_labels = config['num_intent_labels']
-        self.num_slot_labels = config['num_slot_labels']
+        self.config = config
 
         model_class, config_class, tokenizer_class = mapping[self.__model_name__]
 
-        if config['load_pretrained']:
+        if config['load_pretrained']:  # pretrained model from huggingface library
             self.model = model_class.from_pretrained(self.__parent_name__)
             self.tokenizer = tokenizer_class.from_pretrained(self.__parent_name__)
         else:
@@ -38,11 +46,82 @@ class BaseJointModel(nn.Module):
             self.model = model_class(config=model_config)
             self.tokenizer = tokenizer_class.from_pretrained(self.__cache_path__)
 
+    @property
+    def __cache_path__(self):
+        """
+        Where all saved objects would be stored.
+        :return: path
+        """
+        raise NotImplementedError
+
+    @property
+    def __model_file_name__(self):
+        """
+        Returns filename depending on config.
+        :return: file name
+        """
+        raise NotImplementedError
+
+    @property
+    def __model_name__(self):
+        """
+        :return: model name.
+        """
+        raise NotImplementedError
+
+    @property
+    def __parent_name__(self):
+        """
+        :return: pretrained model name (huggingface ref).
+        """
+        raise NotImplementedError
+
+    def save(self):
+        """
+        Save model, config and tokenizer for further use (to __cached_path__).
+        """
+        if not os.path.exists(self.__cache_path__):
+            os.mkdir(self.__cache_path__)
+
+        torch.save(self.state_dict(), self.__cache_path__ + self.__model_file_name__)
+        self.model.config.save_pretrained(self.__cache_path__)
+
+        self.tokenizer.save_pretrained(self.__cache_path__)
+
+    def load(self):
+        """
+        Load model from checkpoint (from __cached_path__).
+        """
+        if not os.path.exists(self.__cache_path__):
+            raise OSError('Path does not exist, model cannot be loaded')
+
+        self.load_state_dict(torch.load(self.__cache_path__ + self.__model_file_name__))
+
+
+class BaseJointModel(BaseModel):
+    """
+    Base model for joint intent classification and slot-filling.
+
+    Implements common init, forward and load_body functions.
+    """
+
+    def __init__(self, config: dict):
+        """
+        Initialize object with two heads - intent classification and slot-filling.
+        """
+        super().__init__(config)
+
+        self.num_intent_labels = config['num_intent_labels']
+        self.num_slot_labels = config['num_slot_labels']
+
         self.intent_classifier = Classifier(self.model.config.hidden_size, self.num_intent_labels, config['dropout'])
         self.slot_classifier = Classifier(self.model.config.hidden_size, self.num_slot_labels, config['dropout'])
 
         if config['load_checkpoint']:
             self.load()
+
+        if config['load_body']:
+            self.load_body()
 
         self.intent_loss = nn.CrossEntropyLoss()
         self.slot_loss = nn.CrossEntropyLoss(ignore_index=config['ignore_index'])
@@ -52,6 +131,10 @@ class BaseJointModel(nn.Module):
     @property
     def __cache_path__(self):
         return f'models/joint_{self.__model_name__}/'
+
+    @property
+    def __model_file_name__(self):
+        return f'{self.config["load_pretrained"]}_{self.config["load_body"]}_model.pt'
 
     @property
     def __model_name__(self):
@@ -79,21 +162,6 @@ class BaseJointModel(nn.Module):
 
         return intent_loss + slot_loss * self.slot_coef, intent_logits, slot_logits
 
-    def save(self):
-        if not os.path.exists(self.__cache_path__):
-            os.mkdir(self.__cache_path__)
-
-        torch.save(self.state_dict(), self.__cache_path__ + 'model.pt')
-        self.model.config.save_pretrained(self.__cache_path__)
-
-        self.tokenizer.save_pretrained(self.__cache_path__)
-
-    def load(self):
-        if not os.path.exists(self.__cache_path__):
-            raise OSError('Path does not exist, model cannot be loaded')
-
-        self.load_state_dict(torch.load(self.__cache_path__ + 'model.pt'))
-
     def load_body(self):
         cache_path = f'models/mlm_{self.__model_name__}/'
         if not os.path.exists(cache_path):
@@ -102,63 +170,18 @@ class BaseJointModel(nn.Module):
         self.model.load_state_dict(torch.load(cache_path + 'body.pt'))
 
 
-class JointXLMRoberta(BaseJointModel):
+class BaseMLMModel(BaseModel):
+    """
+    Base model for masked language modeling.
+
+    Implements common init, forward and save_body functions.
+    """
 
     def __init__(self, config: dict):
+        """
+        Initialize object with head for masked language modeling.
+        """
         super().__init__(config)
-
-    @property
-    def __model_name__(self):
-        return 'xlm-r'
-
-    @property
-    def __parent_name__(self):
-        return 'xlm-roberta-base'
-
-
-class JointMBERT(BaseJointModel):
-
-    def __init__(self, config: dict):
-        super().__init__(config)
-
-    @property
-    def __model_name__(self):
-        return 'm-bert'
-
-    @property
-    def __parent_name__(self):
-        return 'bert-base-multilingual-cased'
-
-
-class Classifier(nn.Module):
-
-    def __init__(self, input_dim, num_labels, dropout=0.):
-        super(Classifier, self).__init__()
-        self.dropout = nn.Dropout(dropout)
-        self.linear = nn.Linear(input_dim, num_labels)
-
-    def forward(self, x):
-        return self.linear(self.dropout(x))
-
-
-class BaseMLMModel(nn.Module):
-
-    def __init__(self, config: dict):
-        super().__init__()
-
-        model_class, config_class, tokenizer_class = mapping[self.__model_name__]
-
-        if config['load_pretrained']:
-            self.model = model_class.from_pretrained(self.__parent_name__)
-            self.tokenizer = tokenizer_class.from_pretrained(self.__parent_name__)
-        else:
-            if os.path.exists(self.__cache_path__):
-                model_config = config_class.from_json_file(self.__cache_path__ + 'config.json')
-            else:
-                model_config = config_class.from_pretrained(self.__parent_name__)
-
-            self.model = model_class(config=model_config)
-            self.tokenizer = tokenizer_class.from_pretrained(self.__cache_path__)
 
         self.lm_head = LMHead(self.model.config)
 
@@ -170,6 +193,10 @@ class BaseMLMModel(nn.Module):
     @property
     def __cache_path__(self):
         return f'models/mlm_{self.__model_name__}/'
+
+    @property
+    def __model_file_name__(self):
+        return f'{self.config["load_pretrained"]}_model.pt'
 
     @property
     def __model_name__(self):
@@ -192,30 +219,54 @@ class BaseMLMModel(nn.Module):
 
         return lm_loss, prediction_scores
 
-    def save(self):
+    def save_body(self):
+        """
+        Save backbone for further use (to __cached_path__).
+        """
         if not os.path.exists(self.__cache_path__):
             os.mkdir(self.__cache_path__)
 
-        torch.save(self.state_dict(), self.__cache_path__ + 'model.pt')
-        self.model.config.save_pretrained(self.__cache_path__)
+        torch.save(self.model.state_dict(), self.__cache_path__ + 'body.pt')
 
-        self.tokenizer.save_pretrained(self.__cache_path__)
 
-    def load(self):
-        if not os.path.exists(self.__cache_path__):
-            raise OSError('Path does not exist, model cannot be loaded')
+class JointXLMRoberta(BaseJointModel):
+    """
+    Joint model using XLM-Roberta as backbone (xlm-roberta-base).
+    """
 
-        self.load_state_dict(torch.load(self.__cache_path__ + 'model.pt'))
+    def __init__(self, config: dict):
+        super().__init__(config)
 
-    def save_body(self):
-        cache_path = f'models/mlm_{self.__model_name__}/'
-        if not os.path.exists(cache_path):
-            os.mkdir(cache_path)
+    @property
+    def __model_name__(self):
+        return 'xlm-r'
 
-        torch.save(self.model.state_dict(), cache_path + 'body.pt')
+    @property
+    def __parent_name__(self):
+        return 'xlm-roberta-base'
+
+
+class JointMBERT(BaseJointModel):
+    """
+    Joint model using Multilingual BERT as backbone (bert-base-multilingual-cased).
+    """
+
+    def __init__(self, config: dict):
+        super().__init__(config)
+
+    @property
+    def __model_name__(self):
+        return 'm-bert'
+
+    @property
+    def __parent_name__(self):
+        return 'bert-base-multilingual-cased'
 
 
 class MLMXLMRoberta(BaseMLMModel):
+    """
+    Masked language modeling model using XLM-Roberta as backbone (xlm-roberta-base).
+    """
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -230,6 +281,9 @@ class MLMXLMRoberta(BaseMLMModel):
 
 
 class MLMMBERT(BaseMLMModel):
+    """
+    Masked language modeling model using Multilingual BERT as backbone (bert-base-multilingual-cased).
+    """
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -243,7 +297,24 @@ class MLMMBERT(BaseMLMModel):
         return 'bert-base-multilingual-cased'
 
 
+class Classifier(nn.Module):
+    """
+    Head for joint task.
+    """
+
+    def __init__(self, input_dim, num_labels, dropout=0.):
+        super(Classifier, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.linear = nn.Linear(input_dim, num_labels)
+
+    def forward(self, x):
+        return self.linear(self.dropout(x))
+
+
 class LMHead(nn.Module):
+    """
+    Head for language modeling task.
+    """
 
     def __init__(self, config):
         super().__init__()

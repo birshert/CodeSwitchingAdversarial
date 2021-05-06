@@ -15,6 +15,12 @@ from utils import tokenize_and_preserve_labels
 
 
 def read_atis(subset: str, languages: list = None):
+    """
+    Reads atis dataset (subset) for specified languages.
+    :param subset: atis subset (train, test, adversarial).
+    :param languages: list of languages to read atis.
+    :return: pandas DataFrame.
+    """
     if languages is None:
         languages = load_config()['languages']
 
@@ -35,6 +41,9 @@ def read_atis(subset: str, languages: list = None):
 
 
 class CustomJointDataset(Dataset):
+    """
+    Dataset for joint intent classification and slot-filling task.
+    """
 
     def __init__(self, data, tokenizer, slot2idx):
         self.input_ids = [
@@ -57,6 +66,9 @@ class CustomJointDataset(Dataset):
 
 
 class JointCollator:
+    """
+    Data collator for joint intent classification and slot-filling task.
+    """
 
     def __init__(self, slot2idx):
         self.slot2idx = slot2idx
@@ -78,6 +90,9 @@ class JointCollator:
 
 
 class CustomMLMDataset(Dataset):
+    """
+    Dataset for masked language modeling task.
+    """
 
     def __init__(self, data, tokenizer):
         self.data = [tokenizer(txt, return_tensors='pt', return_attention_mask=False)['input_ids'][0] for txt in data]
@@ -90,6 +105,9 @@ class CustomMLMDataset(Dataset):
 
 
 class MLMCollator:
+    """
+    Data collator for masked language modeling task.
+    """
 
     def __init__(self, tokenizer, mlm_probability):
         self.tokenizer = tokenizer
@@ -129,6 +147,12 @@ class MLMCollator:
 
 
 def prepare_joint_datasets(config, model: BaseJointModel):
+    """
+    Prepares datasets, collator and some misc for joint intent classification and slot-filling task.
+    :param config: all args.
+    :param model: model.
+    :return: datasets, collator and misc.
+    """
     cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
 
     if os.path.exists(cached_path):
@@ -190,6 +214,12 @@ def prepare_joint_datasets(config, model: BaseJointModel):
 
 
 def prepare_mlm_datasets(config, model: BaseMLMModel):
+    """
+    Prepares datasets for masked language modeling task.
+    :param config: all args.
+    :param model: model.
+    :return: datasets and collator.
+    """
     cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
 
     if os.path.exists(cached_path):

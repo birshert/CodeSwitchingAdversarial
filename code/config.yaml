@@ -1,5 +1,5 @@
-batch_size: 4
-dataset: adversarial
+batch_size: 16
+dataset: atis
 dropout: 0.1
 fp-16: true
 ignore_index: 0
@@ -12,12 +12,13 @@ languages:
 - pt
 - zh_cn
 learning_rate: 1.0e-05
+load_body: false
 load_checkpoint: false
-load_pretrained: false
+load_pretrained: true
 log_interval: 50
 log_metrics: true
 mlm_probability: 0.15
-model_name: mlm m-bert
+model_name: m-bert
 num_epoches: 10
 num_intent_labels: 23
 num_slot_labels: 143
