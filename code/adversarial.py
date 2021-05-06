@@ -12,7 +12,7 @@ from word2word import Word2word
 from dataset import CustomJointDataset
 from dataset import JointCollator
 from dataset import read_atis
-from train_joint_model import evaluate
+from train_joint_model import joint_evaluate
 from utils import create_mapping
 from utils import load_config
 from utils import model_mapping
@@ -82,7 +82,7 @@ class BaseAdversarial:
             pin_memory=True, drop_last=False, collate_fn=JointCollator
         )
 
-        results = evaluate(
+        results = joint_evaluate(
             self.model, loader, fp_16=True,
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
@@ -329,7 +329,7 @@ class AdversarialAlignments(BaseAdversarial):
             pin_memory=True, drop_last=False, collate_fn=JointCollator
         )
 
-        results = evaluate(
+        results = joint_evaluate(
             self.model, loader, fp_16=True,
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )

@@ -4,21 +4,21 @@ import re
 import numpy as np
 import torch
 import yaml
-from seqeval.metrics import (
-    f1_score,
-    precision_score,
-    recall_score,
-)
+from seqeval.metrics import f1_score
+from seqeval.metrics import precision_score
+from seqeval.metrics import recall_score
 
-from model import (
-    JointXLMRoberta,
-    JointMBERT,
-)
+from model import JointMBERT
+from model import JointXLMRoberta
+from model import MLMMBERT
+from model import MLMXLMRoberta
 
 
 model_mapping = {
     'xlm-r': JointXLMRoberta,
-    'm-bert': JointMBERT
+    'm-bert': JointMBERT,
+    'mlm xlm-r': MLMXLMRoberta,
+    'mlm m-bert': MLMMBERT
 }
 
 

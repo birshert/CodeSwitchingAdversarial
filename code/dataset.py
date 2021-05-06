@@ -7,7 +7,8 @@ from sklearn.model_selection import train_test_split
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
-from model import BaseModel
+from model import BaseJointModel
+from model import BaseMLMModel
 from utils import create_mapping
 from utils import load_config
 from utils import tokenize_and_preserve_labels
@@ -79,7 +80,7 @@ class JointCollator:
 class CustomMLMDataset(Dataset):
 
     def __init__(self, data, tokenizer):
-        self.data = [tokenizer(txt, return_tensors='pt', return_attention_mask=False)['input_ids'] for txt in data]
+        self.data = [tokenizer(txt, return_tensors='pt', return_attention_mask=False)['input_ids'][0] for txt in data]
 
     def __len__(self):
         return len(self.data)
@@ -127,7 +128,7 @@ class MLMCollator:
         return inputs, labels
 
 
-def prepare_joint_datasets(config, model: BaseModel):
+def prepare_joint_datasets(config, model: BaseJointModel):
     cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
 
     if os.path.exists(cached_path):
@@ -145,9 +146,19 @@ def prepare_joint_datasets(config, model: BaseModel):
     train_data = []
 
     for index, row in train.iterrows():
-        tokens, slot_labels = tokenize_and_preserve_labels(model.tokenizer, row['utterance'], row['slot_labels'],
-                                                           slot2idx)
-        train_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
+        tokens, slot_labels = tokenize_and_preserve_labels(
+            model.tokenizer,
+            row['utterance'],
+            row['slot_labels'],
+            slot2idx
+        )
+        train_data.append(
+            (
+                tokens,
+                slot_labels,
+                intent2idx.get(row['intent'], intent2idx['UNK'])
+            )
+        )
 
     test_data = []
 
@@ -178,14 +189,15 @@ def prepare_joint_datasets(config, model: BaseModel):
     return train_dataset, test_dataset, collator, slot2idx, idx2slot
 
 
-def prepare_mlm_datasets(config, model):
+def prepare_mlm_datasets(config, model: BaseMLMModel):
     cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
 
     if os.path.exists(cached_path):
         train_dataset = torch.load(cached_path + '/train.pt')
         test_dataset = torch.load(cached_path + '/test.pt')
+        collator = torch.load(cached_path + '/misc.pt')
 
-        return train_dataset, test_dataset
+        return train_dataset, test_dataset, collator
 
     data = read_atis('adversarial', ['en', 'de'])
     uuids = data['uuid']
@@ -197,9 +209,11 @@ def prepare_mlm_datasets(config, model):
 
     train_dataset = CustomMLMDataset(train, model.tokenizer)
     test_dataset = CustomMLMDataset(test, model.tokenizer)
+    collator = MLMCollator(model.tokenizer, config.get('mlm_probability', None))
 
     os.mkdir(cached_path)
     torch.save(train_dataset, cached_path + '/train.pt')
     torch.save(test_dataset, cached_path + '/test.pt')
+    torch.save(collator, cached_path + '/misc.pt')
 
-    return train_dataset, test_dataset
+    return train_dataset, test_dataset, collator

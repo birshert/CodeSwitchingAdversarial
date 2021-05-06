@@ -12,7 +12,7 @@ from transformers import XLMRobertaTokenizerFast
 
 mapping = {
     'xlm-r': (XLMRobertaModel, XLMRobertaConfig, XLMRobertaTokenizerFast),
-    'm-bert': (BertModel, BertConfig, BertTokenizerFast)
+    'm-bert': (BertModel, BertConfig, BertTokenizerFast),
 }
 
 
@@ -30,13 +30,13 @@ class BaseJointModel(nn.Module):
             self.model = model_class.from_pretrained(self.__parent_name__)
             self.tokenizer = tokenizer_class.from_pretrained(self.__parent_name__)
         else:
-            if os.path.exists(f'models/{self.__model_name__}'):
-                model_config = config_class.from_json_file(f'models/{self.__model_name__}/config.json')
+            if os.path.exists(self.__cache_path__):
+                model_config = config_class.from_json_file(self.__cache_path__ + 'config.json')
             else:
                 model_config = config_class.from_pretrained(self.__parent_name__)
 
             self.model = model_class(config=model_config)
-            self.tokenizer = tokenizer_class.from_pretrained(f'models/{self.__model_name__}/')
+            self.tokenizer = tokenizer_class.from_pretrained(self.__cache_path__)
 
         self.intent_classifier = Classifier(self.model.config.hidden_size, self.num_intent_labels, config['dropout'])
         self.slot_classifier = Classifier(self.model.config.hidden_size, self.num_slot_labels, config['dropout'])
@@ -48,6 +48,10 @@ class BaseJointModel(nn.Module):
         self.slot_loss = nn.CrossEntropyLoss(ignore_index=config['ignore_index'])
 
         self.slot_coef = config['slot_coef']
+
+    @property
+    def __cache_path__(self):
+        return f'models/joint_{self.__model_name__}/'
 
     @property
     def __model_name__(self):
@@ -76,25 +80,26 @@ class BaseJointModel(nn.Module):
         return intent_loss + slot_loss * self.slot_coef, intent_logits, slot_logits
 
     def save(self):
-        if not os.path.exists(f'models/{self.__model_name__}'):
-            os.mkdir(f'models/{self.__model_name__}')
+        if not os.path.exists(self.__cache_path__):
+            os.mkdir(self.__cache_path__)
 
-        torch.save(self.state_dict(), f'models/{self.__model_name__}/model.pt')
-        self.model.config.save_pretrained(f'models/{self.__model_name__}/')
+        torch.save(self.state_dict(), self.__cache_path__ + 'model.pt')
+        self.model.config.save_pretrained(self.__cache_path__)
 
-        self.tokenizer.save_pretrained(f'models/{self.__model_name__}/')
+        self.tokenizer.save_pretrained(self.__cache_path__)
 
     def load(self):
-        if not os.path.exists(f'models/{self.__model_name__}'):
+        if not os.path.exists(self.__cache_path__):
             raise OSError('Path does not exist, model cannot be loaded')
 
-        self.load_state_dict(torch.load(f'models/{self.__model_name__}/model.pt'))
+        self.load_state_dict(torch.load(self.__cache_path__ + 'model.pt'))
 
     def load_body(self):
-        if not os.path.exists(f'models/{self.__model_name__}'):
+        cache_path = f'models/mlm_{self.__model_name__}/'
+        if not os.path.exists(cache_path):
             raise OSError('Path does not exist, model cannot be loaded')
 
-        self.model.load_state_dict(torch.load(f'models/{self.__model_name__}/body.pt'))
+        self.model.load_state_dict(torch.load(cache_path + 'body.pt'))
 
 
 class JointXLMRoberta(BaseJointModel):
@@ -147,13 +152,13 @@ class BaseMLMModel(nn.Module):
             self.model = model_class.from_pretrained(self.__parent_name__)
             self.tokenizer = tokenizer_class.from_pretrained(self.__parent_name__)
         else:
-            if os.path.exists(f'models/{self.__model_name__}'):
-                model_config = config_class.from_json_file(f'models/{self.__model_name__}/config.json')
+            if os.path.exists(self.__cache_path__):
+                model_config = config_class.from_json_file(self.__cache_path__ + 'config.json')
             else:
                 model_config = config_class.from_pretrained(self.__parent_name__)
 
             self.model = model_class(config=model_config)
-            self.tokenizer = tokenizer_class.from_pretrained(f'models/{self.__model_name__}/')
+            self.tokenizer = tokenizer_class.from_pretrained(self.__cache_path__)
 
         self.lm_head = LMHead(self.model.config)
 
@@ -161,6 +166,10 @@ class BaseMLMModel(nn.Module):
             self.load()
 
         self.loss = nn.CrossEntropyLoss()
+
+    @property
+    def __cache_path__(self):
+        return f'models/mlm_{self.__model_name__}/'
 
     @property
     def __model_name__(self):
@@ -179,30 +188,31 @@ class BaseMLMModel(nn.Module):
 
         shifted_prediction_scores = prediction_scores[:, :-1, :].contiguous()
         labels = labels[:, 1:].contiguous()
-        lm_loss = self.loss(shifted_prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
+        lm_loss = self.loss(shifted_prediction_scores.view(-1, self.model.config.vocab_size), labels.view(-1))
 
         return lm_loss, prediction_scores
 
     def save(self):
-        if not os.path.exists(f'models/{self.__model_name__}'):
-            os.mkdir(f'models/{self.__model_name__}')
+        if not os.path.exists(self.__cache_path__):
+            os.mkdir(self.__cache_path__)
 
-        torch.save(self.state_dict(), f'models/{self.__model_name__}/model.pt')
-        self.model.config.save_pretrained(f'models/{self.__model_name__}/')
+        torch.save(self.state_dict(), self.__cache_path__ + 'model.pt')
+        self.model.config.save_pretrained(self.__cache_path__)
 
-        self.tokenizer.save_pretrained(f'models/{self.__model_name__}/')
+        self.tokenizer.save_pretrained(self.__cache_path__)
 
     def load(self):
-        if not os.path.exists(f'models/{self.__model_name__}'):
+        if not os.path.exists(self.__cache_path__):
             raise OSError('Path does not exist, model cannot be loaded')
 
-        self.load_state_dict(torch.load(f'models/{self.__model_name__}/model.pt'))
+        self.load_state_dict(torch.load(self.__cache_path__ + 'model.pt'))
 
     def save_body(self):
-        if not os.path.exists(f'models/{self.__model_name__}'):
-            raise OSError('Path does not exist, model cannot be loaded')
+        cache_path = f'models/mlm_{self.__model_name__}/'
+        if not os.path.exists(cache_path):
+            os.mkdir(cache_path)
 
-        torch.save(self.model.state_dict(), f'models/{self.__model_name__}/body.pt')
+        torch.save(self.model.state_dict(), cache_path + 'body.pt')
 
 
 class MLMXLMRoberta(BaseMLMModel):
