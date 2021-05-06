@@ -11,14 +11,14 @@ from seqeval.metrics import (
 )
 
 from model import (
-    XLMRoberta,
-    MBERT,
+    JointXLMRoberta,
+    JointMBERT,
 )
 
 
 model_mapping = {
-    'xlm-r': XLMRoberta,
-    'm-bert': MBERT
+    'xlm-r': JointXLMRoberta,
+    'm-bert': JointMBERT
 }
 
 

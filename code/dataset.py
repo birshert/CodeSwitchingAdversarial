@@ -3,16 +3,14 @@ import os
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.model_selection import train_test_split
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
-from utils import (
-    create_mapping,
-    load_config,
-    tokenize_and_preserve_labels,
-)
-
 from model import BaseModel
+from utils import create_mapping
+from utils import load_config
+from utils import tokenize_and_preserve_labels
 
 
 def read_atis(subset: str, languages: list = None):
@@ -35,7 +33,7 @@ def read_atis(subset: str, languages: list = None):
     return result
 
 
-class CustomDataset(Dataset):
+class CustomJointDataset(Dataset):
 
     def __init__(self, data, tokenizer, slot2idx):
         self.input_ids = [
@@ -56,7 +54,13 @@ class CustomDataset(Dataset):
             self.intents[item]
         )
 
-    def collate_fn(self, x):
+
+class JointCollator:
+
+    def __init__(self, slot2idx):
+        self.slot2idx = slot2idx
+
+    def __call__(self, x):
         input_ids = [elem[0] for elem in x]
         labels = [elem[1] for elem in x]
         intents = [elem[2] for elem in x]
@@ -72,15 +76,66 @@ class CustomDataset(Dataset):
         }
 
 
-def prepare_datasets(model: BaseModel):
-    cached_path = f'data/cached_{model.__model_name__}'
+class CustomMLMDataset(Dataset):
+
+    def __init__(self, data, tokenizer):
+        self.data = [tokenizer(txt, return_tensors='pt', return_attention_mask=False)['input_ids'] for txt in data]
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        return self.data[item]
+
+
+class MLMCollator:
+
+    def __init__(self, tokenizer, mlm_probability):
+        self.tokenizer = tokenizer
+        self.mlm_probability = mlm_probability
+
+    def __call__(self, x):
+        input_ids = pad_sequence(x, batch_first=True)
+        input_ids, labels = self.mask_tokens(input_ids)
+
+        return {
+            'input_ids': input_ids,
+            'labels': labels
+        }
+
+    def mask_tokens(self, inputs):
+        labels = inputs.clone()
+
+        probability_matrix = torch.full(labels.shape, self.mlm_probability)
+
+        special_tokens_mask = [
+            self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
+        ]
+        special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+
+        probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
+        masked_indices = torch.bernoulli(probability_matrix).bool()
+        labels[~masked_indices] = -100
+
+        indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+        inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+
+        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+        random_words = torch.randint(len(self.tokenizer), labels.shape, dtype=torch.long)
+        inputs[indices_random] = random_words[indices_random]
+
+        return inputs, labels
+
+
+def prepare_joint_datasets(config, model: BaseModel):
+    cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
 
     if os.path.exists(cached_path):
         train_dataset = torch.load(cached_path + '/train.pt')
         test_dataset = torch.load(cached_path + '/test.pt')
-        slot2idx, idx2slot = torch.load(cached_path + '/misc.pt')
+        collator, slot2idx, idx2slot = torch.load(cached_path + '/misc.pt')
 
-        return train_dataset, test_dataset, slot2idx, idx2slot
+        return train_dataset, test_dataset, collator, slot2idx, idx2slot
 
     train = read_atis('train')
     test = read_atis('test')
@@ -90,21 +145,61 @@ def prepare_datasets(model: BaseModel):
     train_data = []
 
     for index, row in train.iterrows():
-        tokens, slot_labels = tokenize_and_preserve_labels(model.tokenizer, row['utterance'], row['slot_labels'], slot2idx)
+        tokens, slot_labels = tokenize_and_preserve_labels(model.tokenizer, row['utterance'], row['slot_labels'],
+                                                           slot2idx)
         train_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
 
     test_data = []
 
     for index, row in test.iterrows():
-        tokens, slot_labels = tokenize_and_preserve_labels(model.tokenizer, row['utterance'], row['slot_labels'], slot2idx)
-        test_data.append((tokens, slot_labels, intent2idx.get(row['intent'], intent2idx['UNK'])))
+        tokens, slot_labels = tokenize_and_preserve_labels(
+            model.tokenizer,
+            row['utterance'],
+            row['slot_labels'],
+            slot2idx
+        )
+        test_data.append(
+            (
+                tokens,
+                slot_labels,
+                intent2idx.get(row['intent'], intent2idx['UNK'])
+            )
+        )
 
-    train_dataset = CustomDataset(train_data, model.tokenizer, slot2idx)
-    test_dataset = CustomDataset(test_data, model.tokenizer, slot2idx)
+    train_dataset = CustomJointDataset(train_data, model.tokenizer, slot2idx)
+    test_dataset = CustomJointDataset(test_data, model.tokenizer, slot2idx)
+    collator = JointCollator(slot2idx)
 
     os.mkdir(cached_path)
     torch.save(train_dataset, cached_path + '/train.pt')
     torch.save(test_dataset, cached_path + '/test.pt')
-    torch.save((slot2idx, idx2slot), cached_path + '/misc.pt')
+    torch.save((collator, slot2idx, idx2slot), cached_path + '/misc.pt')
 
-    return train_dataset, test_dataset, slot2idx, idx2slot
+    return train_dataset, test_dataset, collator, slot2idx, idx2slot
+
+
+def prepare_mlm_datasets(config, model):
+    cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
+
+    if os.path.exists(cached_path):
+        train_dataset = torch.load(cached_path + '/train.pt')
+        test_dataset = torch.load(cached_path + '/test.pt')
+
+        return train_dataset, test_dataset
+
+    data = read_atis('adversarial', ['en', 'de'])
+    uuids = data['uuid']
+
+    uuids_train, uuids_test = train_test_split(uuids, test_size=0.1)
+
+    train = data.loc[data['uuid'].isin(uuids_train)]['utterance']
+    test = data.loc[data['uuid'].isin(uuids_test)]['utterance']
+
+    train_dataset = CustomMLMDataset(train, model.tokenizer)
+    test_dataset = CustomMLMDataset(test, model.tokenizer)
+
+    os.mkdir(cached_path)
+    torch.save(train_dataset, cached_path + '/train.pt')
+    torch.save(test_dataset, cached_path + '/test.pt')
+
+    return train_dataset, test_dataset
