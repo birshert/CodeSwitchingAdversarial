@@ -78,7 +78,7 @@ def joint_evaluate(model, dataloader, p_bar=None, **kwargs):
                 slot_preds_list[i].append(kwargs['idx2slot'][slot_preds[i, j]])
 
     results = {
-        'loss [VALID]': total_loss / len(dataloader),
+        'loss': total_loss / len(dataloader),
     }
 
     results.update(compute_metrics(intent_preds, intent_true, slot_preds_list, slot_true_list))
@@ -119,13 +119,15 @@ def main():
     with tqdm(total=num_epoches * (len(train_loader) + len(test_loader) * wandb.config['log_metrics'] * log)) as p_bar:
         for epoch in range(num_epoches):
             if log and wandb.config['log_metrics']:
-                wandb.log(
-                    joint_evaluate(
-                        model, test_loader, p_bar, fp_16=wandb.config['fp-16'],
-                        epoch=epoch, num_epoches=num_epoches,
-                        slot2idx=slot2idx, idx2slot=idx2slot
-                    )
+                evaluation_results = joint_evaluate(
+                    model, test_loader, p_bar, fp_16=wandb.config['fp-16'],
+                    epoch=epoch, num_epoches=num_epoches,
+                    slot2idx=slot2idx, idx2slot=idx2slot
                 )
+
+                evaluation_results['loss [VALID]'] = evaluation_results.pop('loss')
+
+                wandb.log(evaluation_results)
 
             model.train()
 

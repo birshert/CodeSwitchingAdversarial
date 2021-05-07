@@ -1,8 +1,6 @@
 from collections import defaultdict
 from copy import deepcopy
 from time import time
-from typing import List
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -43,14 +41,14 @@ class BaseAdversarial:
         self.base_language = base_language
         self.num_examples = 1
 
-    def get_candidates(self, *args, **kwargs) -> Tuple[list, list]:
+    def get_candidates(self, *args, **kwargs) -> tuple[list, list]:
         """
         Searches for adversarial perturbations.
         :return: candidates, losses
         """
         raise NotImplementedError
 
-    def attack(self, *args, **kwargs) -> List[str]:
+    def attack(self, *args, **kwargs) -> list[str]:
         """
         Performs attack on a single example.
         :return: adversarial perturbation.
@@ -58,7 +56,7 @@ class BaseAdversarial:
         raise NotImplementedError
 
     @torch.no_grad()
-    def attack_dataset(self, subset: str = 'test') -> dict[str: float]:
+    def attack_dataset(self, subset: str = 'test') -> dict[str, float]:
         """
         Attacks atis subset.
         :param subset: atis subset.
@@ -104,7 +102,6 @@ class BaseAdversarial:
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
-        results['loss'] = results.pop('loss [VALID]')
         results['perplexity'] = perplexity / (len(dataset) * self.num_examples)
         results['time'] = time() - starting_time
 
@@ -163,10 +160,10 @@ class Pacifist(BaseAdversarial):
 
         self.num_examples = 1
 
-    def get_candidates(self, x, y_slots, y_intent, pos) -> Tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos) -> tuple[list, list]:
         pass
 
-    def attack(self, x, y_slots, y_intent) -> List[str]:
+    def attack(self, x, y_slots, y_intent) -> list[str]:
         return x.split(), self.calculate_loss(x, y_slots, y_intent)
 
 
@@ -193,7 +190,7 @@ class AdversarialWordLevel(BaseAdversarial):
 
         self.rng = np.random.default_rng()
 
-    def attack(self, x, y_slots, y_intent) -> List[str]:
+    def attack(self, x, y_slots, y_intent) -> list[str]:
         if isinstance(x, str):
             x = x.split()
 
@@ -211,7 +208,7 @@ class AdversarialWordLevel(BaseAdversarial):
 
         return x, current_loss
 
-    def get_candidates(self, x, y_slots, y_intent, pos) -> Tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos) -> tuple[list, list]:
         xc = deepcopy(x)
 
         candidates, losses = [], []
@@ -229,7 +226,7 @@ class AdversarialWordLevel(BaseAdversarial):
         return candidates, losses
 
 
-def mapping_alignments(lines, data) -> dict:
+def mapping_alignments(lines, data) -> dict[int, dict[int, str]]:
     """
     Create mapping for alignments and dataset (alignments should be for this dataset).
     :param lines: lines generated with awesome-align.
@@ -283,7 +280,7 @@ class AdversarialAlignments(BaseAdversarial):
 
         self.rng = np.random.default_rng()
 
-    def attack(self, x, y_slots, y_intent, alignments) -> List[str]:
+    def attack(self, x, y_slots, y_intent, alignments) -> list[str]:
         if isinstance(x, str):
             x = x.split()
 
@@ -301,7 +298,7 @@ class AdversarialAlignments(BaseAdversarial):
 
         return x, current_loss
 
-    def get_candidates(self, x, y_slots, y_intent, pos, alignments) -> Tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos, alignments) -> tuple[list, list]:
         xc = deepcopy(x)
         y_slots_c = deepcopy(y_slots)
 
@@ -371,7 +368,6 @@ class AdversarialAlignments(BaseAdversarial):
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
-        results['loss'] = results.pop('loss [VALID]')
         results['perplexity'] = perplexity / (len(dataset) * self.num_examples)
         results['time'] = time() - starting_time
 
@@ -389,7 +385,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
         self.num_examples = num_examples
 
     @torch.no_grad()
-    def attack_dataset(self, subset: str = 'test'):
+    def generate_dataset(self, subset: str = 'test'):
         dataset = read_atis(subset, [self.base_language])
 
         data = []
@@ -414,7 +410,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
 
         return pd.DataFrame.from_dict(data)
 
-    def attack(self, x, y_slots, y_intent, alignments) -> List[str]:
+    def attack(self, x, y_slots, y_intent, alignments) -> list[str]:
         if isinstance(x, str):
             x = x.split()
 
@@ -429,7 +425,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
 
         return x
 
-    def get_candidates(self, x, y_slots, y_intent, pos, alignments) -> Tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos, alignments) -> tuple[list, list]:
         xc = deepcopy(x)
         y_slots_c = deepcopy(y_slots)
 

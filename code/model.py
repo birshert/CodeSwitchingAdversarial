@@ -134,7 +134,7 @@ class BaseJointModel(BaseModel):
 
     @property
     def __model_file_name__(self):
-        return f'{self.config["load_pretrained"]}_{self.config["load_body"]}_model.pt'
+        return f'model_{int(self.config["load_pretrained"])}_{int(self.config["load_body"])}.pt'
 
     @property
     def __model_name__(self):
@@ -196,7 +196,7 @@ class BaseMLMModel(BaseModel):
 
     @property
     def __model_file_name__(self):
-        return f'{self.config["load_pretrained"]}_model.pt'
+        return f'model_{int(self.config["load_pretrained"])}.pt'
 
     @property
     def __model_name__(self):

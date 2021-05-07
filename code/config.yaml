@@ -14,7 +14,7 @@ languages:
 learning_rate: 1.0e-05
 load_body: false
 load_checkpoint: false
-load_pretrained: true
+load_pretrained: false
 log_interval: 50
 log_metrics: true
 mlm_probability: 0.15
