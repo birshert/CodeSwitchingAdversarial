@@ -95,7 +95,14 @@ class CustomMLMDataset(Dataset):
     """
 
     def __init__(self, data, tokenizer):
-        self.data = [tokenizer(txt, return_tensors='pt', return_attention_mask=False)['input_ids'][0] for txt in data]
+        self.data = [
+            tokenizer(
+                txt,
+                return_tensors='pt',
+                return_attention_mask=False,
+                max_length=30
+            )['input_ids'][0] for txt in data
+        ]
 
     def __len__(self):
         return len(self.data)
@@ -229,7 +236,7 @@ def prepare_mlm_datasets(config, model: BaseMLMModel):
 
         return train_dataset, test_dataset, collator
 
-    data = read_atis('adversarial', ['en', 'de'])
+    data = read_atis('adversarial', ['en'])
     uuids = data['uuid']
 
     uuids_train, uuids_test = train_test_split(uuids, test_size=0.1)
