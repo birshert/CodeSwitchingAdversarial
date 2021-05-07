@@ -26,17 +26,18 @@ class BaseAdversarial:
     Implements basic init + attack dataset + calculate loss functions.
     """
 
-    def __init__(self, base_language: str = 'en'):
+    def __init__(self, base_language: str = 'en', init_model: bool = True):
         self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train'))
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         self.config = load_config()
 
-        self.model = model_mapping[self.config['model_name']](config=self.config)
-        self.model.load()
-        self.model.eval()
-        self.model.to(self.device, non_blocking=True)
+        if init_model:
+            self.model = model_mapping[self.config['model_name']](config=self.config)
+            self.model.load()
+            self.model.eval()
+            self.model.to(self.device, non_blocking=True)
 
         self.base_language = base_language
         self.num_examples = 1
@@ -155,8 +156,8 @@ class Pacifist(BaseAdversarial):
     No adversarial attack (passing examples through).
     """
 
-    def __init__(self, base_language: str = 'en'):
-        super().__init__(base_language)
+    def __init__(self, base_language: str = 'en', init_model: bool = True):
+        super().__init__(base_language, init_model)
 
         self.num_examples = 1
 
@@ -174,8 +175,8 @@ class AdversarialWordLevel(BaseAdversarial):
     Translations are generated with dictionaries from word2word library.
     """
 
-    def __init__(self, base_language: str = 'en', languages: list = None):
-        super().__init__(base_language)
+    def __init__(self, base_language: str = 'en', languages: list = None, init_model: bool = True):
+        super().__init__(base_language, init_model)
 
         if languages is None:
             languages = self.config['languages']
@@ -257,8 +258,8 @@ class AdversarialAlignments(BaseAdversarial):
     SET of languages. Alignments are precomputed. Candidates are chosen in order to maximize model's loss.
     """
 
-    def __init__(self, base_language: str = 'en', languages: list = None, subset: str = 'test'):
-        super().__init__(base_language)
+    def __init__(self, base_language: str = 'en', languages: list = None, subset: str = 'test', init_model: bool = True):
+        super().__init__(base_language, init_model)
 
         if languages is None:
             languages = self.config['languages']
@@ -380,7 +381,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
     """
 
     def __init__(self, base_language: str = 'en', languages: list = None, subset: str = 'test', num_examples: int = 10):
-        super().__init__(base_language, languages, subset)
+        super().__init__(base_language, languages, subset, init_model=False)
 
         self.num_examples = num_examples
 
