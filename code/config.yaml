@@ -10,7 +10,7 @@ languages:
 - fr
 - ja
 - pt
-- zh_cn
+- zh
 learning_rate: 1.0e-05
 load_body: false
 load_checkpoint: false
