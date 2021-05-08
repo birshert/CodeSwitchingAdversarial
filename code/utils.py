@@ -107,6 +107,11 @@ def load_config():
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
+def save_config(config):
+    with open('config.yaml', 'w') as f:
+        yaml.dump(config, f, Dumper=yaml.SafeDumper)
+
+
 def _set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
