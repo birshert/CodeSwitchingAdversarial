@@ -13,39 +13,46 @@ def main():
 
     languages = config['languages']
 
-    for base_language in languages:
-        print(f'Attacking language {base_language}')
+    try:
 
-        base_path = f'results/{base_language}/'
-        model_name = f'{config["model_name"]}_{int(config["load_pretrained"])}_{int(config["load_body"])}.csv'
+        for base_language in languages:
+            print(f'Attacking language {base_language}')
 
-        if not os.path.exists(base_path):
-            os.mkdir(base_path)
+            base_path = f'results/{base_language}/'
+            model_name = f'{config["model_name"]}_{int(config["load_pretrained"])}_{int(config["load_body"])}.csv'
 
-        other_languages = list(languages)
-        other_languages.remove(base_language)
+            if not os.path.exists(base_path):
+                os.mkdir(base_path)
 
-        results = {
-            'No attack': Pacifist(base_language=base_language).attack_dataset(),
-        }
+            other_languages = list(languages)
+            other_languages.remove(base_language)
 
-        # WORD LEVEL
+            results = {
+                'No attack': Pacifist(base_language=base_language).attack_dataset(),
+            }
 
-        for language in other_languages:
-            results[f'Word level [{language}]'] = AdversarialWordLevel(
-                base_language=base_language,
-                languages=[language]
-            ).attack_dataset()
+            # WORD LEVEL
 
-        # ALIGNMENTS
+            for language in other_languages:
+                results[f'Word level [{language}]'] = AdversarialWordLevel(
+                    base_language=base_language,
+                    languages=[language]
+                ).attack_dataset()
 
-        for language in other_languages:
-            results[f'Alignments [{language}]'] = AdversarialAlignments(
-                base_language=base_language,
-                languages=[language]
-            ).attack_dataset()
+            # ALIGNMENTS
 
-        pd.DataFrame.from_dict(results).transpose().to_csv(base_path + model_name)
+            for language in other_languages:
+                results[f'Alignments [{language}]'] = AdversarialAlignments(
+                    base_language=base_language,
+                    languages=[language]
+                ).attack_dataset()
+
+            pd.DataFrame.from_dict(results).transpose().to_csv(base_path + model_name)
+    except KeyboardInterrupt:
+        try:
+            pd.DataFrame.from_dict(results).transpose().to_csv(base_path + model_name)
+        finally:
+            exit(0)
 
 
 if __name__ == '__main__':

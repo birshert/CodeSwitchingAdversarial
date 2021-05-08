@@ -26,7 +26,7 @@ class BaseAdversarial:
     Implements basic init + attack dataset + calculate loss functions.
     """
 
-    def __init__(self, base_language: str = 'en', init_model: bool = True):
+    def __init__(self, base_language: str = 'en', languages: list = None, init_model: bool = True):
         self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train'))
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -42,19 +42,67 @@ class BaseAdversarial:
         self.base_language = base_language
         self.num_examples = 1
 
-    def get_candidates(self, *args, **kwargs) -> tuple[list, list]:
-        """
-        Searches for adversarial perturbations.
-        :return: candidates, losses
-        """
+        if languages is None:
+            languages = self.config['languages']
+        try:
+            languages.remove(self.base_language)
+        except ValueError:
+            pass
+
+        self.languages = languages
+
+        self.rng = np.random.default_rng()
+
+    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
         raise NotImplementedError
 
-    def attack(self, *args, **kwargs) -> list[str]:
+    def get_candidates(self, x, y_slots, y_intent, pos, *args, **kwargs) -> tuple[list, list]:
         """
         Performs attack on a single example.
         :return: adversarial perturbation.
         """
-        raise NotImplementedError
+        xc = deepcopy(x)
+        y_slots_c = deepcopy(y_slots)
+
+        candidates, losses = [], []
+
+        for lang in self.languages:
+            tokens = self.get_tokens(x, pos, lang, *args, **kwargs)
+
+            if tokens is None:
+                continue
+
+            if len(tokens) > 1:
+                if y_slots[pos].startswith('B'):
+                    new_slot_label = 'I' + y_slots[pos][1:]
+                    y_slots_c[pos] = y_slots[pos] + ' '.join(new_slot_label for _ in range(len(tokens) - 1))
+                else:
+                    y_slots_c[pos] = ' '.join(y_slots[pos] for _ in range(len(tokens)))
+
+            xc[pos] = ' '.join(tokens)
+
+            losses.append(self.calculate_loss(' '.join(xc), ' '.join(y_slots_c), y_intent))
+            candidates.append(' '.join(tokens))
+
+        return candidates, losses
+
+    def attack(self, x, y_slots, y_intent, *args, **kwargs) -> list[str]:
+        if isinstance(x, str):
+            x = x.split()
+
+        if isinstance(y_slots, str):
+            y_slots = y_slots.split()
+
+        current_loss = self.calculate_loss(x, y_slots, y_intent)
+
+        for pos in self.rng.permutation(len(x)):  # choosing indexes in random order
+            candidates, losses = self.get_candidates(x, y_slots, y_intent, pos, *args, **kwargs)
+
+            if candidates and current_loss < np.max(losses):  # if we can "improve" loss
+                current_loss = np.max(losses)
+                x[pos] = candidates[np.argmax(losses)]
+
+        return x, current_loss
 
     @torch.no_grad()
     def attack_dataset(self, subset: str = 'test') -> dict[str, float]:
@@ -156,15 +204,18 @@ class Pacifist(BaseAdversarial):
     No adversarial attack (passing examples through).
     """
 
-    def __init__(self, base_language: str = 'en', init_model: bool = True):
-        super().__init__(base_language, init_model)
+    def __init__(self, base_language: str = 'en', languages: list = None, init_model: bool = True):
+        super().__init__(base_language, languages, init_model)
 
         self.num_examples = 1
 
-    def get_candidates(self, x, y_slots, y_intent, pos) -> tuple[list, list]:
+    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
         pass
 
-    def attack(self, x, y_slots, y_intent) -> list[str]:
+    def get_candidates(self, x, y_slots, y_intent, pos, *args, **kwargs) -> tuple[list, list]:
+        pass
+
+    def attack(self, x, y_slots, y_intent, *args, **kwargs) -> list[str]:
         return x.split(), self.calculate_loss(x, y_slots, y_intent)
 
 
@@ -176,55 +227,15 @@ class AdversarialWordLevel(BaseAdversarial):
     """
 
     def __init__(self, base_language: str = 'en', languages: list = None, init_model: bool = True):
-        super().__init__(base_language, init_model)
+        super().__init__(base_language, languages, init_model)
 
-        if languages is None:
-            languages = self.config['languages']
+        self.translations = torch.load('data/atis_test_translations/translations.pt')
+
+    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
         try:
-            languages.remove(self.base_language)
-        except ValueError:
-            pass
-
-        self.languages = languages
-
-        self.translators = {lang: Word2word(self.base_language, lang) for lang in languages}
-
-        self.rng = np.random.default_rng()
-
-    def attack(self, x, y_slots, y_intent) -> list[str]:
-        if isinstance(x, str):
-            x = x.split()
-
-        if isinstance(y_slots, str):
-            y_slots = y_slots.split()
-
-        current_loss = self.calculate_loss(x, y_slots, y_intent)
-
-        for pos in self.rng.permutation(len(x)):  # choosing indexes in random order
-            candidates, losses = self.get_candidates(x, y_slots, y_intent, pos)
-
-            if candidates and current_loss < np.max(losses):  # if we can "improve" loss
-                current_loss = np.max(losses)
-                x[pos] = candidates[np.argmax(losses)]
-
-        return x, current_loss
-
-    def get_candidates(self, x, y_slots, y_intent, pos) -> tuple[list, list]:
-        xc = deepcopy(x)
-
-        candidates, losses = [], []
-
-        for lang in self.languages:
-            try:
-                token = np.random.choice(self.translators[lang](x[pos].lower(), n_best=3))
-                xc[pos] = token
-
-                losses.append(self.calculate_loss(xc, y_slots, y_intent))
-                candidates.append(token)
-            except KeyError:
-                pass
-
-        return candidates, losses
+            return self.translations[self.base_language][lang][x[pos]].split()
+        except KeyError:
+            return None
 
 
 def mapping_alignments(lines, data) -> dict[int, dict[int, str]]:
@@ -258,17 +269,11 @@ class AdversarialAlignments(BaseAdversarial):
     SET of languages. Alignments are precomputed. Candidates are chosen in order to maximize model's loss.
     """
 
-    def __init__(self, base_language: str = 'en', languages: list = None, subset: str = 'test', init_model: bool = True):
-        super().__init__(base_language, init_model)
-
-        if languages is None:
-            languages = self.config['languages']
-        try:
-            languages.remove(self.base_language)
-        except ValueError:
-            pass
-
-        self.languages = languages
+    def __init__(
+            self, base_language: str = 'en', languages: list = None,
+            subset: str = 'test', init_model: bool = True
+    ):
+        super().__init__(base_language, languages, init_model)
 
         self.alignments = {}
 
@@ -279,51 +284,15 @@ class AdversarialAlignments(BaseAdversarial):
                     read_atis(subset, [language])['utterance']
                 )
 
-        self.rng = np.random.default_rng()
+    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
+        alignments = kwargs.get('alignments', None)
 
-    def attack(self, x, y_slots, y_intent, alignments) -> list[str]:
-        if isinstance(x, str):
-            x = x.split()
+        assert alignments is not None
 
-        if isinstance(y_slots, str):
-            y_slots = y_slots.split()
-
-        current_loss = self.calculate_loss(x, y_slots, y_intent)
-
-        for pos in self.rng.permutation(len(x)):
-            candidates, losses = self.get_candidates(x, y_slots, y_intent, pos, alignments)
-
-            if candidates and current_loss < np.max(losses):
-                current_loss = np.max(losses)
-                x[pos] = candidates[np.argmax(losses)]
-
-        return x, current_loss
-
-    def get_candidates(self, x, y_slots, y_intent, pos, alignments) -> tuple[list, list]:
-        xc = deepcopy(x)
-        y_slots_c = deepcopy(y_slots)
-
-        candidates, losses = [], []
-
-        for lang in self.languages:
-            try:
-                tokens = alignments[lang][pos]
-
-                if len(tokens) > 1:
-                    if y_slots[pos].startswith('B'):
-                        new_slot_label = 'I' + y_slots[pos][1:]
-                        y_slots_c[pos] = y_slots[pos] + ' '.join(new_slot_label for _ in range(len(tokens) - 1))
-                    else:
-                        y_slots_c[pos] = ' '.join(y_slots[pos] for _ in range(len(tokens)))
-
-                xc[pos] = ' '.join(tokens)
-
-                losses.append(self.calculate_loss(' '.join(xc), ' '.join(y_slots_c), y_intent))
-                candidates.append(' '.join(tokens))
-            except KeyError:
-                pass
-
-        return candidates, losses
+        try:
+            return alignments[lang][pos]
+        except KeyError:
+            return None
 
     @torch.no_grad()
     def attack_dataset(self, subset: str = 'test'):
@@ -343,7 +312,7 @@ class AdversarialAlignments(BaseAdversarial):
             alignments = {language: self.alignments[language][idx] for language in self.languages}
 
             for _ in range(self.num_examples):
-                example, loss = self.attack(x, y_slots, y_intent, alignments)
+                example, loss = self.attack(x, y_slots, y_intent, alignments=alignments)
                 perplexity += np.exp(loss)
 
                 tokens, slot_labels = tokenize_and_preserve_labels(
@@ -365,7 +334,7 @@ class AdversarialAlignments(BaseAdversarial):
         loader = DataLoader(data, batch_size=8, drop_last=False, collate_fn=JointCollator(self.slot2idx))
 
         results = joint_evaluate(
-            self.model, loader, fp_16=True,
+            self.model, loader, fp_16=self.config['fp-16'],
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
@@ -380,10 +349,14 @@ class RandomAdversarialAlignments(AdversarialAlignments):
     Adversarial attack, performing random changes in data (based on AdversarialAlignments attack).
     """
 
-    def __init__(self, base_language: str = 'en', languages: list = None, subset: str = 'test', num_examples: int = 10):
+    def __init__(
+            self, base_language: str = 'en', languages: list = None,
+            subset: str = 'test', num_examples: int = 10, perturbation_probability: float = 0.5
+    ):
         super().__init__(base_language, languages, subset, init_model=False)
 
         self.num_examples = num_examples
+        self.perturbation_probability = perturbation_probability
 
     @torch.no_grad()
     def generate_dataset(self, subset: str = 'test'):
@@ -399,7 +372,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
             alignments = {language: self.alignments[language][idx] for language in self.languages}
 
             for _ in range(self.num_examples):
-                example = self.attack(x, y_slots, y_intent, alignments)
+                example = self.attack(x, y_slots, y_intent, alignments=alignments)
 
                 data.append(
                     {
@@ -411,7 +384,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
 
         return pd.DataFrame.from_dict(data)
 
-    def attack(self, x, y_slots, y_intent, alignments) -> list[str]:
+    def attack(self, x, y_slots, y_intent, *args, **kwargs) -> list[str]:
         if isinstance(x, str):
             x = x.split()
 
@@ -419,34 +392,34 @@ class RandomAdversarialAlignments(AdversarialAlignments):
             y_slots = y_slots.split()
 
         for pos in self.rng.permutation(len(x)):
-            candidates = self.get_candidates(x, y_slots, y_intent, pos, alignments)
+            candidates = self.get_candidates(x, y_slots, y_intent, pos, *args, **kwargs)
 
             if candidates and self.rng.normal() > 0:
                 x[pos] = np.random.choice(candidates)
 
         return x
 
-    def get_candidates(self, x, y_slots, y_intent, pos, alignments) -> tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos, *args, **kwargs) -> list:
         xc = deepcopy(x)
         y_slots_c = deepcopy(y_slots)
 
         candidates = []
 
         for lang in self.languages:
-            try:
-                tokens = alignments[lang][pos]
+            tokens = self.get_tokens(x, pos, lang, *args, **kwargs)
 
-                if len(tokens) > 1:
-                    if y_slots[pos].startswith('B'):
-                        new_slot_label = 'I' + y_slots[pos][1:]
-                        y_slots_c[pos] = y_slots[pos] + ' '.join(new_slot_label for _ in range(len(tokens) - 1))
-                    else:
-                        y_slots_c[pos] = ' '.join(y_slots[pos] for _ in range(len(tokens)))
+            if tokens is None:
+                continue
 
-                xc[pos] = ' '.join(tokens)
+            if len(tokens) > 1:
+                if y_slots[pos].startswith('B'):
+                    new_slot_label = 'I' + y_slots[pos][1:]
+                    y_slots_c[pos] = y_slots[pos] + ' '.join(new_slot_label for _ in range(len(tokens) - 1))
+                else:
+                    y_slots_c[pos] = ' '.join(y_slots[pos] for _ in range(len(tokens)))
 
-                candidates.append(' '.join(tokens))
-            except KeyError:
-                pass
+            xc[pos] = ' '.join(tokens)
+
+            candidates.append(' '.join(tokens))
 
         return candidates
