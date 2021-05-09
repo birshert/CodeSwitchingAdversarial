@@ -124,6 +124,7 @@ class BaseJointModel(BaseModel):
             self.load_body()
 
         self.intent_loss = nn.CrossEntropyLoss()
+        self.batch_intent_loss = nn.CrossEntropyLoss(reduction='none')
         self.slot_loss = nn.CrossEntropyLoss(ignore_index=config['ignore_index'])
 
         self.slot_coef = config['slot_coef']
@@ -161,6 +162,26 @@ class BaseJointModel(BaseModel):
         slot_loss = self.slot_loss(active_logits, active_labels)
 
         return intent_loss + slot_loss * self.slot_coef, intent_logits, slot_logits
+
+    @torch.no_grad()
+    def calculate_loss(self, input_ids, intent_label_ids, slot_labels_ids, attention_mask=None):
+        outputs = self.model(input_ids, attention_mask=attention_mask)
+
+        sequence_output = outputs[0]
+        pooled_output = outputs[1]
+
+        intent_logits = self.intent_classifier(pooled_output)
+        slot_logits = self.slot_classifier(sequence_output)
+
+        intent_loss = self.batch_intent_loss(intent_logits.view(-1, self.num_intent_labels), intent_label_ids.view(-1))
+
+        slot_loss = torch.zeros_like(intent_loss)
+
+        for idx in range(len(slot_logits)):
+            active_loss = attention_mask[idx] == 1
+            slot_loss[idx] = self.slot_loss(slot_logits[idx][active_loss], slot_labels_ids[idx][active_loss])
+
+        return intent_loss + slot_loss * slot_loss
 
     def load_body(self):
         cache_path = f'models/mlm_{self.__model_name__}/'

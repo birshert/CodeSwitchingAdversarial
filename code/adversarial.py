@@ -5,9 +5,10 @@ from time import time
 import numpy as np
 import pandas as pd
 import torch
+import torch.multiprocessing as mp
+from more_itertools import chunked
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from word2word import Word2word
 
 from dataset import CustomJointDataset
 from dataset import JointCollator
@@ -19,6 +20,9 @@ from utils import model_mapping
 from utils import tokenize_and_preserve_labels
 
 
+CPU_COUNT = mp.cpu_count()
+
+
 class BaseAdversarial:
     """
     Base class for adversarial attacks.
@@ -26,8 +30,9 @@ class BaseAdversarial:
     Implements basic init + attack dataset + calculate loss functions.
     """
 
-    def __init__(self, base_language: str = 'en', languages: list = None, init_model: bool = True):
+    def __init__(self, base_language: str = 'en', attack_language: str = None, init_model: bool = True):
         self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train'))
+        self.collator = JointCollator(self.slot2idx)
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -42,21 +47,19 @@ class BaseAdversarial:
         self.base_language = base_language
         self.num_examples = 1
 
-        if languages is None:
-            languages = self.config['languages']
-        try:
-            languages.remove(self.base_language)
-        except ValueError:
-            pass
+        if attack_language is None:
+            other_languages = self.config['languages']
+            other_languages.remove(self.base_language)
+            attack_language = np.random.choice(other_languages)
 
-        self.languages = languages
+        self.attack_language = attack_language
 
         self.rng = np.random.default_rng()
 
-    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
+    def get_tokens(self, x, pos, *args) -> list[str]:
         raise NotImplementedError
 
-    def get_candidates(self, x, y_slots, y_intent, pos, *args, **kwargs) -> tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos, *args) -> list:
         """
         Performs attack on a single example.
         :return: adversarial perturbation.
@@ -64,45 +67,88 @@ class BaseAdversarial:
         xc = deepcopy(x)
         y_slots_c = deepcopy(y_slots)
 
-        candidates, losses = [], []
+        tokens = self.get_tokens(x, pos, args)
 
-        for lang in self.languages:
-            tokens = self.get_tokens(x, pos, lang, *args, **kwargs)
+        if tokens is None:
+            return x, y_slots, y_intent
 
-            if tokens is None:
-                continue
+        if len(tokens) > 1:
+            if y_slots[pos].startswith('B'):
+                new_slot_label = 'I' + y_slots[pos][1:]
+                y_slots_c[pos] = y_slots[pos] + ' '.join(new_slot_label for _ in range(len(tokens) - 1))
+            else:
+                y_slots_c[pos] = ' '.join(y_slots[pos] for _ in range(len(tokens)))
 
-            if len(tokens) > 1:
-                if y_slots[pos].startswith('B'):
-                    new_slot_label = 'I' + y_slots[pos][1:]
-                    y_slots_c[pos] = y_slots[pos] + ' '.join(new_slot_label for _ in range(len(tokens) - 1))
-                else:
-                    y_slots_c[pos] = ' '.join(y_slots[pos] for _ in range(len(tokens)))
+        xc[pos] = ' '.join(tokens)
 
-            xc[pos] = ' '.join(tokens)
+        return ' '.join(xc).split(), ' '.join(y_slots_c).split(), y_intent
 
-            losses.append(self.calculate_loss(' '.join(xc), ' '.join(y_slots_c), y_intent))
-            candidates.append(' '.join(tokens))
+    def attack(self, x, y_slots, y_intent, *args) -> tuple[list[list[str]], list[list[str]], list[str], list[float]]:
+        num_objects = len(x)
 
-        return candidates, losses
-
-    def attack(self, x, y_slots, y_intent, *args, **kwargs) -> list[str]:
-        if isinstance(x, str):
-            x = x.split()
-
-        if isinstance(y_slots, str):
-            y_slots = y_slots.split()
+        for idx in range(num_objects):
+            x[idx] = x[idx].split()
+            y_slots[idx] = y_slots[idx].split()
 
         current_loss = self.calculate_loss(x, y_slots, y_intent)
 
-        for pos in self.rng.permutation(len(x)):  # choosing indexes in random order
-            candidates, losses = self.get_candidates(x, y_slots, y_intent, pos, *args, **kwargs)
+        for pos in np.array(
+                [
+                    self.rng.permutation(len(x[0])) for _ in range(num_objects)
+                ]
+        ).T:  # choosing indexes in random order
 
-            if candidates and current_loss < np.max(losses):  # if we can "improve" loss
-                current_loss = np.max(losses)
-                x[pos] = candidates[np.argmax(losses)]
+            candidates = list(map(self.get_candidates, *(x, y_slots, y_intent, pos, *args)))
 
-        return x, current_loss
+            losses = self.calculate_loss(*list(zip(*candidates)))
+
+            for idx in range(num_objects):
+                if candidates[idx] and losses[idx] > current_loss[idx]:  # if we can "improve" loss
+                    current_loss[idx] = losses[idx]
+                    x[idx], y_slots[idx], y_intent[idx] = candidates[idx]
+
+        return x, y_slots, y_intent, current_loss
+
+    @torch.no_grad()
+    def calculate_loss(self, x, y_slots, y_intent) -> list[float]:
+        """
+        Calculates loss of model on an example.
+        :param x: example utterance.
+        :param y_slots: example slot labels.
+        :param y_intent: example intent label.
+        :return: float value of loss.
+        """
+
+        data = []
+
+        for idx in range(len(x)):
+            tokens, slot_labels = tokenize_and_preserve_labels(
+                self.model.tokenizer, x[idx], y_slots[idx], self.slot2idx
+            )
+
+            input_ids = torch.tensor(
+                self.model.tokenizer.convert_tokens_to_ids(tokens),
+                dtype=torch.long,
+            )
+
+            slot_labels = torch.tensor(
+                slot_labels,
+                dtype=torch.long,
+            )
+
+            intent = torch.tensor(
+                self.intent2idx.get(y_intent[idx], self.intent2idx['UNK']),
+                dtype=torch.long,
+            )
+
+            data.append((input_ids, slot_labels, intent))
+
+        batch = self.collator(data)
+        batch = {key: batch[key].to(self.device) for key in batch.keys()}
+
+        losses = self.model.calculate_loss(**batch)
+
+        return losses.cpu().tolist()
 
     @torch.no_grad()
     def attack_dataset(self, subset: str = 'test') -> dict[str, float]:
@@ -112,6 +158,7 @@ class BaseAdversarial:
         :return: evaluation results.
         """
         dataset = read_atis(subset, [self.base_language])
+        dataset['len'] = dataset['utterance'].str.split().apply(len)
 
         data = []
 
@@ -119,29 +166,39 @@ class BaseAdversarial:
 
         perplexity = 0
 
-        for idx, row in tqdm(dataset.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)):
-            x = row['utterance']
-            y_slots = row['slot_labels']
-            y_intent = row['intent']
-
+        with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)) as progress_bar:
             for _ in range(self.num_examples):
-                example, loss = self.attack(x, y_slots, y_intent)
-                perplexity += np.exp(loss)
+                for key, group in dataset.groupby('len'):
+                    idxes = list(chunked(group.index.values.tolist(), 16))
 
-                tokens, slot_labels = tokenize_and_preserve_labels(
-                    self.model.tokenizer,
-                    ' '.join(example),
-                    y_slots,
-                    self.slot2idx
-                )
+                    for i in idxes:
+                        chunk = group.loc[i]
 
-                data.append(
-                    (
-                        tokens,
-                        slot_labels,
-                        self.intent2idx.get(y_intent, self.intent2idx['UNK'])
-                    )
-                )
+                        x = chunk['utterance'].values
+                        y_slots = chunk['slot_labels'].values
+                        y_intent = chunk['intent'].values
+
+                        x, y_slots, y_intent, losses = self.attack(x, y_slots, y_intent)
+
+                        perplexity += np.sum(np.exp(losses))
+
+                        for idx in range(len(x)):
+                            tokens, slot_labels = tokenize_and_preserve_labels(
+                                self.model.tokenizer,
+                                x[idx],
+                                y_slots[idx],
+                                self.slot2idx
+                            )
+
+                            data.append(
+                                (
+                                    tokens,
+                                    slot_labels,
+                                    self.intent2idx.get(y_intent[idx], self.intent2idx['UNK'])
+                                )
+                            )
+
+                        progress_bar.update(len(i))
 
         data = CustomJointDataset(data, self.model.tokenizer, self.slot2idx)
         loader = DataLoader(data, batch_size=8, drop_last=False, collate_fn=JointCollator(self.slot2idx))
@@ -156,67 +213,31 @@ class BaseAdversarial:
 
         return results
 
-    @torch.no_grad()
-    def calculate_loss(self, x, y_slots, y_intent) -> float:
-        """
-        Calculates loss of model on an example.
-        :param x: example utterance.
-        :param y_slots: example slot labels.
-        :param y_intent: example intent label.
-        :return: float value of loss.
-        """
-
-        tokens, slot_labels = tokenize_and_preserve_labels(
-            self.model.tokenizer, x, y_slots, self.slot2idx
-        )
-
-        input_ids = torch.tensor(
-            self.model.tokenizer.convert_tokens_to_ids(tokens),
-            dtype=torch.long,
-            device=self.device
-        ).unsqueeze(0)
-
-        intent = torch.tensor(
-            self.intent2idx.get(y_intent, self.intent2idx['UNK']),
-            dtype=torch.long,
-            device=self.device
-        ).unsqueeze(0)
-
-        slot_labels = torch.tensor(
-            slot_labels,
-            dtype=torch.long,
-            device=self.device
-        ).unsqueeze(0)
-
-        attention_mask = torch.ones_like(
-            input_ids,
-            dtype=torch.long,
-            device=self.device
-        )
-
-        loss = self.model(input_ids, intent, slot_labels, attention_mask)[0]
-
-        return loss.cpu().item()
-
 
 class Pacifist(BaseAdversarial):
     """
     No adversarial attack (passing examples through).
     """
 
-    def __init__(self, base_language: str = 'en', languages: list = None, init_model: bool = True):
-        super().__init__(base_language, languages, init_model)
+    def __init__(self, base_language: str = 'en', attack_language: str = None, init_model: bool = True):
+        super().__init__(base_language, attack_language, init_model)
 
         self.num_examples = 1
 
-    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
+    def get_tokens(self, x, pos, *args) -> list[str]:
         pass
 
-    def get_candidates(self, x, y_slots, y_intent, pos, *args, **kwargs) -> tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos, **kwargs) -> tuple[list, list]:
         pass
 
-    def attack(self, x, y_slots, y_intent, *args, **kwargs) -> list[str]:
-        return x.split(), self.calculate_loss(x, y_slots, y_intent)
+    def attack(self, x, y_slots, y_intent, *args) -> tuple[list[list[str]], list[list[str]], list[str], list[float]]:
+        num_objects = len(x)
+
+        for idx in range(num_objects):
+            x[idx] = x[idx].split()
+            y_slots[idx] = y_slots[idx].split()
+
+        return x, y_slots, y_intent, self.calculate_loss(x, y_slots, y_intent)
 
 
 class AdversarialWordLevel(BaseAdversarial):
@@ -226,14 +247,14 @@ class AdversarialWordLevel(BaseAdversarial):
     Translations are generated with dictionaries from word2word library.
     """
 
-    def __init__(self, base_language: str = 'en', languages: list = None, init_model: bool = True):
-        super().__init__(base_language, languages, init_model)
+    def __init__(self, base_language: str = 'en', attack_language: str = None, init_model: bool = True):
+        super().__init__(base_language, attack_language, init_model)
 
         self.translations = torch.load('data/atis_test_translations/translations.pt')
 
-    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
+    def get_tokens(self, x, pos, *args) -> list[str]:
         try:
-            return self.translations[self.base_language][lang][x[pos]].split()
+            return self.translations[self.base_language][self.attack_language][x[pos]].split()
         except KeyError:
             return None
 
@@ -248,7 +269,7 @@ def mapping_alignments(lines, data) -> dict[int, dict[int, str]]:
     if len(lines) != len(data):
         raise ValueError('Alignments should be from this data.')
 
-    mapping = {}
+    mapping: dict = {}
 
     for idx, line in enumerate(lines):
         mapping[idx] = defaultdict(list)
@@ -270,33 +291,36 @@ class AdversarialAlignments(BaseAdversarial):
     """
 
     def __init__(
-            self, base_language: str = 'en', languages: list = None,
-            subset: str = 'test', init_model: bool = True
+            self, base_language: str = 'en', attack_language: str = None,
+            init_model: bool = True, subset: str = 'test'
     ):
-        super().__init__(base_language, languages, init_model)
+        super().__init__(base_language, attack_language, init_model)
 
-        self.alignments = {}
+        self.alignments: dict[int, dict[int, str]] = {}
 
-        for language in self.languages:
-            with open(f'data/atis_{subset}_alignment/{self.base_language}_{language}.out') as f:
-                self.alignments[language] = mapping_alignments(
-                    f.readlines(),
-                    read_atis(subset, [language])['utterance']
-                )
+        with open(f'data/atis_{subset}_alignment/{self.base_language}_{self.attack_language}.out') as f:
+            self.alignments = mapping_alignments(
+                f.readlines(),
+                read_atis(subset, [self.attack_language])['utterance']
+            )
 
-    def get_tokens(self, x, pos, lang, *args, **kwargs) -> list[str]:
-        alignments = kwargs.get('alignments', None)
-
-        assert alignments is not None
+    def get_tokens(self, x, pos, *args) -> list[str]:
+        alignments = args[0][0]
 
         try:
-            return alignments[lang][pos]
+            return alignments[pos]
         except KeyError:
             return None
 
     @torch.no_grad()
-    def attack_dataset(self, subset: str = 'test'):
+    def attack_dataset(self, subset: str = 'test') -> dict[str, float]:
+        """
+        Attacks atis subset.
+        :param subset: atis subset.
+        :return: evaluation results.
+        """
         dataset = read_atis(subset, [self.base_language])
+        dataset['len'] = dataset['utterance'].str.split().apply(len)
 
         data = []
 
@@ -304,37 +328,46 @@ class AdversarialAlignments(BaseAdversarial):
 
         perplexity = 0
 
-        for idx, row in tqdm(dataset.iterrows(), desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)):
-            x = row['utterance']
-            y_slots = row['slot_labels']
-            y_intent = row['intent']
-
-            alignments = {language: self.alignments[language][idx] for language in self.languages}
-
+        with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)) as progress_bar:
             for _ in range(self.num_examples):
-                example, loss = self.attack(x, y_slots, y_intent, alignments=alignments)
-                perplexity += np.exp(loss)
+                for key, group in dataset.groupby('len'):
+                    idxes = list(chunked(group.index.values.tolist(), 16))
 
-                tokens, slot_labels = tokenize_and_preserve_labels(
-                    self.model.tokenizer,
-                    ' '.join(example),
-                    y_slots,
-                    self.slot2idx
-                )
+                    for i in idxes:
+                        chunk = group.loc[i]
 
-                data.append(
-                    (
-                        tokens,
-                        slot_labels,
-                        self.intent2idx.get(y_intent, self.intent2idx['UNK'])
-                    )
-                )
+                        x = chunk['utterance'].values
+                        y_slots = chunk['slot_labels'].values
+                        y_intent = chunk['intent'].values
+                        alignments = [self.alignments[ii] for ii in i]
+
+                        x, y_slots, y_intent, losses = self.attack(x, y_slots, y_intent, alignments)
+
+                        perplexity += np.sum(np.exp(losses))
+
+                        for idx in range(len(x)):
+                            tokens, slot_labels = tokenize_and_preserve_labels(
+                                self.model.tokenizer,
+                                x[idx],
+                                y_slots[idx],
+                                self.slot2idx
+                            )
+
+                            data.append(
+                                (
+                                    tokens,
+                                    slot_labels,
+                                    self.intent2idx.get(y_intent[idx], self.intent2idx['UNK'])
+                                )
+                            )
+
+                        progress_bar.update(len(i))
 
         data = CustomJointDataset(data, self.model.tokenizer, self.slot2idx)
         loader = DataLoader(data, batch_size=8, drop_last=False, collate_fn=JointCollator(self.slot2idx))
 
         results = joint_evaluate(
-            self.model, loader, fp_16=self.config['fp-16'],
+            self.model, loader, fp_16=True,
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
@@ -350,10 +383,10 @@ class RandomAdversarialAlignments(AdversarialAlignments):
     """
 
     def __init__(
-            self, base_language: str = 'en', languages: list = None,
-            subset: str = 'test', num_examples: int = 10, perturbation_probability: float = 0.5
+            self, base_language: str = 'en', attack_language: str = None, init_model: bool = False,
+            subset: str = 'test', perturbation_probability: float = 0.5, num_examples: int = 1
     ):
-        super().__init__(base_language, languages, subset, init_model=False)
+        super().__init__(base_language, attack_language, subset=subset, init_model=init_model)
 
         self.num_examples = num_examples
         self.perturbation_probability = perturbation_probability
@@ -368,11 +401,10 @@ class RandomAdversarialAlignments(AdversarialAlignments):
             x = row['utterance']
             y_slots = row['slot_labels']
             y_intent = row['intent']
-
-            alignments = {language: self.alignments[language][idx] for language in self.languages}
+            alignments = self.alignments[idx]
 
             for _ in range(self.num_examples):
-                example = self.attack(x, y_slots, y_intent, alignments=alignments)
+                example = self.attack(x, y_slots, y_intent, alignments)
 
                 data.append(
                     {
@@ -384,7 +416,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
 
         return pd.DataFrame.from_dict(data)
 
-    def attack(self, x, y_slots, y_intent, *args, **kwargs) -> list[str]:
+    def attack(self, x, y_slots, y_intent, *args) -> list[str]:
         if isinstance(x, str):
             x = x.split()
 
@@ -392,25 +424,20 @@ class RandomAdversarialAlignments(AdversarialAlignments):
             y_slots = y_slots.split()
 
         for pos in self.rng.permutation(len(x)):
-            candidates = self.get_candidates(x, y_slots, y_intent, pos, *args, **kwargs)
+            candidates = self.get_candidates(x, y_slots, y_intent, pos, args)
 
-            if candidates and self.rng.normal() > 0:
-                x[pos] = np.random.choice(candidates)
+            if candidates and self.rng.uniform() > self.perturbation_probability:
+                x, y_slots, y_intent = candidates
 
         return x
 
-    def get_candidates(self, x, y_slots, y_intent, pos, *args, **kwargs) -> list:
+    def get_candidates(self, x, y_slots, y_intent, pos, *args) -> list:
         xc = deepcopy(x)
         y_slots_c = deepcopy(y_slots)
 
-        candidates = []
+        tokens = self.get_tokens(x, pos, args)
 
-        for lang in self.languages:
-            tokens = self.get_tokens(x, pos, lang, *args, **kwargs)
-
-            if tokens is None:
-                continue
-
+        if tokens is not None:
             if len(tokens) > 1:
                 if y_slots[pos].startswith('B'):
                     new_slot_label = 'I' + y_slots[pos][1:]
@@ -420,6 +447,4 @@ class RandomAdversarialAlignments(AdversarialAlignments):
 
             xc[pos] = ' '.join(tokens)
 
-            candidates.append(' '.join(tokens))
-
-        return candidates
+        return xc, y_slots_c, y_intent
