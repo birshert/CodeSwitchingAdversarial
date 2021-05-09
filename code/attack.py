@@ -13,10 +13,17 @@ def main():
 
     languages = config['languages']
 
+    pacifist = Pacifist()
+    word_level_attacker = AdversarialWordLevel()
+    alignments_attacker = AdversarialAlignments()
+
     try:
 
         for base_language in languages:
             print(f'Attacking language {base_language}')
+
+            word_level_attacker.change_base_language(base_language)
+            alignments_attacker.change_base_language(base_language)
 
             base_path = f'results/{base_language}/'
             model_name = f'{config["model_name"]}_{int(config["load_pretrained"])}_{int(config["load_body"])}.csv'
@@ -27,25 +34,33 @@ def main():
             other_languages = list(languages)
             other_languages.remove(base_language)
 
+            pacifist.port_model()
+
             results = {
-                'No attack': Pacifist(base_language=base_language).attack_dataset(),
+                'No attack': pacifist.attack_dataset(),
             }
+
+            pacifist.port_model('cpu')
 
             # WORD LEVEL
 
+            word_level_attacker.port_model()
+
             for language in other_languages:
-                results[f'Word level [{language}]'] = AdversarialWordLevel(
-                    base_language=base_language,
-                    languages=[language]
-                ).attack_dataset()
+                word_level_attacker.change_attack_language(language)
+                results[f'Word level [{language}]'] = word_level_attacker.attack_dataset()
+
+            word_level_attacker.port_model('cpu')
 
             # ALIGNMENTS
 
+            alignments_attacker.port_model()
+
             for language in other_languages:
-                results[f'Alignments [{language}]'] = AdversarialAlignments(
-                    base_language=base_language,
-                    languages=[language]
-                ).attack_dataset()
+                alignments_attacker.change_attack_language(language)
+                results[f'Alignments [{language}]'] = alignments_attacker.attack_dataset()
+
+            alignments_attacker.port_model('cpu')
 
             pd.DataFrame.from_dict(results).transpose().to_csv(base_path + model_name)
     except KeyboardInterrupt:

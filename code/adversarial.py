@@ -42,7 +42,6 @@ class BaseAdversarial:
             self.model = model_mapping[self.config['model_name']](config=self.config)
             self.model.load()
             self.model.eval()
-            self.model.to(self.device, non_blocking=True)
 
         self.base_language = base_language
         self.num_examples = 1
@@ -55,6 +54,18 @@ class BaseAdversarial:
         self.attack_language = attack_language
 
         self.rng = np.random.default_rng()
+
+    def port_model(self, device: str = 'cuda'):
+        if device == 'cuda':
+            self.model.cuda()
+        else:
+            self.model.cpu()
+
+    def change_attack_language(self, new_language: str):
+        raise NotImplementedError
+
+    def change_base_language(self, new_language: str):
+        raise NotImplementedError
 
     def get_tokens(self, x, pos, *args) -> list[str]:
         raise NotImplementedError
@@ -81,7 +92,7 @@ class BaseAdversarial:
 
         xc[pos] = ' '.join(tokens)
 
-        return ' '.join(xc).split(), ' '.join(y_slots_c).split(), y_intent
+        return xc, y_slots_c, y_intent
 
     def attack(self, x, y_slots, y_intent, *args) -> tuple[list[list[str]], list[list[str]], list[str], list[float]]:
         num_objects = len(x)
@@ -224,6 +235,12 @@ class Pacifist(BaseAdversarial):
 
         self.num_examples = 1
 
+    def change_attack_language(self, new_language: str):
+        pass
+
+    def change_base_language(self, new_language: str):
+        pass
+
     def get_tokens(self, x, pos, *args) -> list[str]:
         pass
 
@@ -251,6 +268,12 @@ class AdversarialWordLevel(BaseAdversarial):
         super().__init__(base_language, attack_language, init_model)
 
         self.translations = torch.load('data/atis_test_translations/translations.pt')
+
+    def change_attack_language(self, new_language: str):
+        self.attack_language = new_language
+
+    def change_base_language(self, new_language: str):
+        self.base_language = new_language
 
     def get_tokens(self, x, pos, *args) -> list[str]:
         try:
@@ -296,13 +319,23 @@ class AdversarialAlignments(BaseAdversarial):
     ):
         super().__init__(base_language, attack_language, init_model)
 
+        self.subset = subset
+
         self.alignments: dict[int, dict[int, str]] = {}
 
-        with open(f'data/atis_{subset}_alignment/{self.base_language}_{self.attack_language}.out') as f:
+    def read_alignments(self):
+        with open(f'data/atis_{self.subset}_alignment/{self.base_language}_{self.attack_language}.out') as f:
             self.alignments = mapping_alignments(
                 f.readlines(),
-                read_atis(subset, [self.attack_language])['utterance']
+                read_atis(self.subset, [self.attack_language])['utterance']
             )
+
+    def change_attack_language(self, new_language: str):
+        self.attack_language = new_language
+        self.read_alignments()
+
+    def change_base_language(self, new_language: str):
+        self.base_language = new_language
 
     def get_tokens(self, x, pos, *args) -> list[str]:
         alignments = args[0][0]
@@ -319,6 +352,8 @@ class AdversarialAlignments(BaseAdversarial):
         :param subset: atis subset.
         :return: evaluation results.
         """
+        subset = self.subset
+
         dataset = read_atis(subset, [self.base_language])
         dataset['len'] = dataset['utterance'].str.split().apply(len)
 
