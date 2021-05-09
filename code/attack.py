@@ -17,6 +17,9 @@ def main():
     word_level_attacker = AdversarialWordLevel()
     alignments_attacker = AdversarialAlignments()
 
+    word_level_attacker.num_examples = config['num_examples']
+    alignments_attacker.num_examples = config['num_examples']
+
     try:
 
         for base_language in languages:

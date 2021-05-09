@@ -12,14 +12,15 @@ languages:
 - pt
 - zh
 learning_rate: 1.0e-05
-load_body: false
+load_body: true
 load_checkpoint: false
 load_pretrained: false
 log_interval: 50
 log_metrics: true
 mlm_probability: 0.15
-model_name: xlm-r
+model_name: m-bert
 num_epoches: 5
+num_examples: 1
 num_intent_labels: 23
 num_slot_labels: 143
 slot_coef: 1.0
