@@ -1,8 +1,51 @@
-\subsection{Первый булшитный пошёл}
-\subsubsection{Выводы и результаты}
+\begin{table}[H]
+	\resizebox{\textwidth}{!}{
+		\begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|}
+			\hline
+			& xlm-r & xlm-r adv pretrained & xlm-r pretrained & m-bert & m-bert adv pretrained & m-bert pretrained \\ \hline
+			intent\_acc&$0.943 \pm 0.016$ & $0.945 \pm 0.020$ & $0.970 \pm 0.007$ & $0.954 \pm 0.010$ & $0.960 \pm 0.007$ & $0.971 \pm 0.008$ \\ \hline
+			slot\_f1&$0.898 \pm 0.035$ & $0.903 \pm 0.043$ & $0.937 \pm 0.016$ & $0.895 \pm 0.040$ & $0.898 \pm 0.041$ & $0.933 \pm 0.021$ \\ \hline
+			sementic\_frame\_acc&$0.669 \pm 0.098$ & $0.687 \pm 0.109$ & $0.815 \pm 0.054$ & $0.660 \pm 0.104$ & $0.684 \pm 0.104$ & $0.801 \pm 0.066$ \\ \hline
+			loss&$0.619 \pm 0.131$ & $0.589 \pm 0.154$ & $0.395 \pm 0.066$ & $0.518 \pm 0.122$ & $0.509 \pm 0.127$ & $0.397 \pm 0.068$ \\ \hline
+		\end{tabular}
+	}\caption{Таблица сравнения моделей между собой на тестовой выборке}\label{tab:table}
+\end{table}
 
-\subsection{Второй булшитный пошёл}
-\subsubsection{Выводы и результаты}
+\begin{table}[H]
+	\resizebox{\textwidth}{!}{
+		\begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|c|}
+			\hline
+			& en & de & es & fr & ja & pt & zh \\ \hline
+			intent\_acc&$0.971 \pm 0.004$ & $0.964 \pm 0.008$ & $0.947 \pm 0.020$ & $0.967 \pm 0.007$ & $0.951 \pm 0.016$ & $0.946 \pm 0.020$ & $0.954 \pm 0.012$ \\ \hline
+			slot\_f1&$0.940 \pm 0.010$ & $0.930 \pm 0.013$ & $0.839 \pm 0.041$ & $0.903 \pm 0.023$ & $0.922 \pm 0.010$ & $0.905 \pm 0.019$ & $0.937 \pm 0.011$ \\ \hline
+			sementic\_frame\_acc&$0.803 \pm 0.043$ & $0.798 \pm 0.047$ & $0.521 \pm 0.115$ & $0.742 \pm 0.063$ & $0.693 \pm 0.051$ & $0.736 \pm 0.060$ & $0.742 \pm 0.071$ \\ \hline
+			loss&$0.384 \pm 0.045$ & $0.438 \pm 0.071$ & $0.731 \pm 0.142$ & $0.433 \pm 0.070$ & $0.535 \pm 0.095$ & $0.529 \pm 0.136$ & $0.481 \pm 0.092$ \\ \hline
+		\end{tabular}
+	}\caption{Таблица сравнения качества для языков на тестовой выборке}\label{tab:table2}
+\end{table}
 
-\subsection{Третий булшитный пошёл}
-\subsubsection{Выводы и результаты}
+\begin{table}[H]
+	\resizebox{\textwidth}{!}{
+		\begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|c|}
+			\hline
+			& en & de & es & fr & ja & pt & zh \\ \hline
+			intent\_acc&$0.818 \pm 0.058$ & $0.858 \pm 0.063$ & $0.846 \pm 0.053$ & $0.842 \pm 0.056$ & $0.815 \pm 0.037$ & $0.829 \pm 0.060$ & $0.866 \pm 0.032$ \\ \hline
+			slot\_f1&$0.483 \pm 0.136$ & $0.427 \pm 0.088$ & $0.362 \pm 0.146$ & $0.418 \pm 0.124$ & $0.283 \pm 0.142$ & $0.420 \pm 0.142$ & $0.390 \pm 0.142$ \\ \hline
+			sementic\_frame\_acc&$0.073 \pm 0.081$ & $0.044 \pm 0.054$ & $0.046 \pm 0.052$ & $0.051 \pm 0.062$ & $0.026 \pm 0.070$ & $0.070 \pm 0.069$ & $0.030 \pm 0.083$ \\ \hline
+			loss&$5.001 \pm 1.760$ & $5.950 \pm 1.904$ & $5.287 \pm 1.946$ & $6.140 \pm 2.033$ & $13.099 \pm 4.899$ & $5.417 \pm 1.876$ & $13.122 \pm 5.131$ \\ \hline
+		\end{tabular}
+	}\caption{Таблица сравнения качества по языкам для атаки Word level}\label{tab:table3}
+\end{table}
+
+\begin{table}[H]
+	\resizebox{\textwidth}{!}{
+		\begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|c|}
+			\hline
+			& en & de & es & fr & ja & pt & zh \\ \hline
+			intent\_acc&$0.919 \pm 0.021$ & $0.913 \pm 0.024$ & $0.913 \pm 0.025$ & $0.921 \pm 0.023$ & $0.897 \pm 0.020$ & $0.904 \pm 0.029$ & $0.890 \pm 0.022$ \\ \hline
+			slot\_f1&$0.680 \pm 0.142$ & $0.661 \pm 0.143$ & $0.598 \pm 0.147$ & $0.636 \pm 0.136$ & $0.563 \pm 0.068$ & $0.658 \pm 0.143$ & $0.630 \pm 0.051$ \\ \hline
+			sementic\_frame\_acc&$0.305 \pm 0.137$ & $0.302 \pm 0.116$ & $0.192 \pm 0.092$ & $0.271 \pm 0.117$ & $0.037 \pm 0.058$ & $0.322 \pm 0.151$ & $0.054 \pm 0.079$ \\ \hline
+			loss&$2.949 \pm 1.592$ & $3.291 \pm 0.956$ & $3.628 \pm 1.548$ & $2.729 \pm 0.828$ & $10.237 \pm 1.783$ & $2.683 \pm 1.314$ & $9.786 \pm 2.084$ \\ \hline
+		\end{tabular}
+	}\caption{Таблица сравнения качества по языкам для атаки Alignments}\label{tab:table4}
+\end{table}

@@ -1,6 +1,5 @@
 from collections import defaultdict
 from copy import deepcopy
-from time import time
 
 import numpy as np
 import pandas as pd
@@ -44,7 +43,6 @@ class BaseAdversarial:
             self.model.eval()
 
         self.base_language = base_language
-        self.num_examples = 1
 
         if attack_language is None:
             other_languages = self.config['languages']
@@ -52,6 +50,8 @@ class BaseAdversarial:
             attack_language = np.random.choice(other_languages)
 
         self.attack_language = attack_language
+
+        self.num_examples = 1
 
         self.rng = np.random.default_rng()
 
@@ -62,10 +62,10 @@ class BaseAdversarial:
             self.model.cpu()
 
     def change_attack_language(self, new_language: str):
-        raise NotImplementedError
+        self.attack_language = new_language
 
     def change_base_language(self, new_language: str):
-        raise NotImplementedError
+        self.base_language = new_language
 
     def get_tokens(self, x, pos, *args) -> list[str]:
         raise NotImplementedError
@@ -173,10 +173,6 @@ class BaseAdversarial:
 
         data = []
 
-        starting_time = time()
-
-        perplexity = 0
-
         with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)) as progress_bar:
             for _ in range(self.num_examples):
                 for key, group in dataset.groupby('len'):
@@ -190,8 +186,6 @@ class BaseAdversarial:
                         y_intent = chunk['intent'].values
 
                         x, y_slots, y_intent, losses = self.attack(x, y_slots, y_intent)
-
-                        perplexity += np.sum(np.exp(losses))
 
                         for idx in range(len(x)):
                             tokens, slot_labels = tokenize_and_preserve_labels(
@@ -219,8 +213,12 @@ class BaseAdversarial:
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
-        results['perplexity'] = perplexity / (len(dataset) * self.num_examples)
-        results['time'] = time() - starting_time
+        results = {
+            'intent_acc': results['intent_acc'],
+            'slot_f1': results['slot_f1'],
+            'sementic_frame_acc': results['sementic_frame_acc'],
+            'loss': results['loss']
+        }
 
         return results
 
@@ -234,12 +232,6 @@ class Pacifist(BaseAdversarial):
         super().__init__(base_language, attack_language, init_model)
 
         self.num_examples = 1
-
-    def change_attack_language(self, new_language: str):
-        pass
-
-    def change_base_language(self, new_language: str):
-        pass
 
     def get_tokens(self, x, pos, *args) -> list[str]:
         pass
@@ -268,12 +260,6 @@ class AdversarialWordLevel(BaseAdversarial):
         super().__init__(base_language, attack_language, init_model)
 
         self.translations = torch.load('data/atis_test_translations/translations.pt')
-
-    def change_attack_language(self, new_language: str):
-        self.attack_language = new_language
-
-    def change_base_language(self, new_language: str):
-        self.base_language = new_language
 
     def get_tokens(self, x, pos, *args) -> list[str]:
         try:
@@ -331,11 +317,8 @@ class AdversarialAlignments(BaseAdversarial):
             )
 
     def change_attack_language(self, new_language: str):
-        self.attack_language = new_language
+        super().change_attack_language(new_language)
         self.read_alignments()
-
-    def change_base_language(self, new_language: str):
-        self.base_language = new_language
 
     def get_tokens(self, x, pos, *args) -> list[str]:
         alignments = args[0][0]
@@ -359,10 +342,6 @@ class AdversarialAlignments(BaseAdversarial):
 
         data = []
 
-        starting_time = time()
-
-        perplexity = 0
-
         with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)) as progress_bar:
             for _ in range(self.num_examples):
                 for key, group in dataset.groupby('len'):
@@ -377,8 +356,6 @@ class AdversarialAlignments(BaseAdversarial):
                         alignments = [self.alignments[ii] for ii in i]
 
                         x, y_slots, y_intent, losses = self.attack(x, y_slots, y_intent, alignments)
-
-                        perplexity += np.sum(np.exp(losses))
 
                         for idx in range(len(x)):
                             tokens, slot_labels = tokenize_and_preserve_labels(
@@ -406,8 +383,12 @@ class AdversarialAlignments(BaseAdversarial):
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
-        results['perplexity'] = perplexity / (len(dataset) * self.num_examples)
-        results['time'] = time() - starting_time
+        results = {
+            'intent_acc': results['intent_acc'],
+            'slot_f1': results['slot_f1'],
+            'sementic_frame_acc': results['sementic_frame_acc'],
+            'loss': results['loss']
+        }
 
         return results
 

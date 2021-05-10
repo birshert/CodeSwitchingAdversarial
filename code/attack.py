@@ -25,6 +25,7 @@ def main():
         for base_language in languages:
             print(f'Attacking language {base_language}')
 
+            pacifist.change_base_language(base_language)
             word_level_attacker.change_base_language(base_language)
             alignments_attacker.change_base_language(base_language)
 

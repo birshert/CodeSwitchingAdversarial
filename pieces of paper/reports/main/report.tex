@@ -1,12 +1,9 @@
-%! Author = lesha
-%! Date = 15.03.2021
-
 % Preamble
-\documentclass[a4paper,14pt]{extarticle}
+\documentclass[a4paper, 12pt]{article}
 
 % Packages
 \usepackage{geometry}
-\usepackage[T1]{fontenc}
+\usepackage[T2A]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage[english,russian]{babel}
 \usepackage{amsmath}
@@ -24,6 +21,22 @@
 \usepackage{cite}
 \usepackage{indentfirst}
 
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+}
+\urlstyle{same}
+
+\usepackage{algorithm}
+\usepackage{amsfonts}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+
+
+\usepackage{booktabs}
+\usepackage{longtable}
+
 \geometry{left=2.5cm}  % левое поле
 \geometry{right=1.5cm}  % правое поле
 \geometry{top=1.5cm}  % верхнее поле
@@ -36,6 +49,8 @@
 \renewcommand{\labelenumii}{\arabic{enumi}.\arabic{enumii}.}  % Меняем везде перечисления на цифра.цифра
 \renewcommand{\theenumiii}{.\arabic{enumiii}}  % Меняем везде перечисления на цифра.цифра
 \renewcommand{\labelenumiii}{\arabic{enumi}.\arabic{enumii}.\arabic{enumiii}.}  % Меняем везде перечисления на цифра.цифра
+
+\DeclareMathOperator*{\argmax}{arg\,max}
 
 % Document
 \begin{document}
@@ -132,7 +147,6 @@
 %%%%%%%%%%%%%%%%%%
 
 
-    \section{Список литературы}
     \bibliography{bibliography}
     \bibliographystyle{plain}
 %%%%%%%%%%%%%%%%%%
