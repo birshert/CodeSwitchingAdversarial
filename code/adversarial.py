@@ -173,7 +173,7 @@ class BaseAdversarial:
 
         data = []
 
-        with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)) as progress_bar:
+        with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset) * self.num_examples) as progress_bar:
             for _ in range(self.num_examples):
                 for key, group in dataset.groupby('len'):
                     idxes = list(chunked(group.index.values.tolist(), 16))
@@ -342,7 +342,7 @@ class AdversarialAlignments(BaseAdversarial):
 
         data = []
 
-        with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset)) as progress_bar:
+        with tqdm(desc='GENERATING ADVERSARIAL EXAMPLES', total=len(dataset) * self.num_examples) as progress_bar:
             for _ in range(self.num_examples):
                 for key, group in dataset.groupby('len'):
                     idxes = list(chunked(group.index.values.tolist(), 16))
