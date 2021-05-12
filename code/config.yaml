@@ -12,7 +12,7 @@ languages:
 - pt
 - zh
 learning_rate: 1.0e-05
-load_body: false
+load_adv_pretrained: false
 load_checkpoint: false
 load_pretrained: false
 log_interval: 50

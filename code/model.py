@@ -120,7 +120,7 @@ class BaseJointModel(BaseModel):
         if config['load_checkpoint']:
             self.load()
 
-        if config['load_body']:
+        if config['load_adv_pretrained']:
             self.load_body()
 
         self.intent_loss = nn.CrossEntropyLoss()
@@ -135,7 +135,7 @@ class BaseJointModel(BaseModel):
 
     @property
     def __model_file_name__(self):
-        return f'model_{int(self.config["load_pretrained"])}_{int(self.config["load_body"])}.pt'
+        return f'model_{int(self.config["only_english"])}_{int(self.config["load_body"])}.pt'
 
     @property
     def __model_name__(self):
