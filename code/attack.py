@@ -29,7 +29,7 @@ def main():
         alignments_attacker.change_base_language(base_language)
 
         base_path = f'results/{base_language}/'
-        model_name = f'{config["model_name"]}_{int(config["load_pretrained"])}_{int(config["load_body"])}.csv'
+        model_name = f'{config["model_name"]}_{int(config["only_english"])}_{int(config["load_adv_pretrained"])}.csv'
 
         if not os.path.exists(base_path):
             os.mkdir(base_path)

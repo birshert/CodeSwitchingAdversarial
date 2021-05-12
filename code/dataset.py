@@ -177,7 +177,7 @@ def prepare_joint_datasets(config, model: BaseJointModel):
     train = read_atis('train', languages)
     test = read_atis('test', languages)
 
-    slot2idx, idx2slot, intent2idx = create_mapping(train)
+    slot2idx, idx2slot, intent2idx = create_mapping(read_atis('train', ['en']))
 
     train_data = []
 

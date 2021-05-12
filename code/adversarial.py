@@ -4,7 +4,6 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import torch
-import torch.multiprocessing as mp
 from more_itertools import chunked
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -19,9 +18,6 @@ from utils import model_mapping
 from utils import tokenize_and_preserve_labels
 
 
-CPU_COUNT = mp.cpu_count()
-
-
 class BaseAdversarial:
     """
     Base class for adversarial attacks.
@@ -30,7 +26,7 @@ class BaseAdversarial:
     """
 
     def __init__(self, base_language: str = 'en', attack_language: str = None, init_model: bool = True):
-        self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train'))
+        self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train', ['en']))
         self.collator = JointCollator(self.slot2idx)
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -57,7 +53,7 @@ class BaseAdversarial:
 
     def port_model(self, device: str = 'cuda'):
         if device == 'cuda':
-            self.model.cuda()
+            self.model.to(self.device)
         else:
             self.model.cpu()
 
@@ -67,10 +63,10 @@ class BaseAdversarial:
     def change_base_language(self, new_language: str):
         self.base_language = new_language
 
-    def get_tokens(self, x, pos, *args) -> list[str]:
+    def get_tokens(self, x, pos, *args):
         raise NotImplementedError
 
-    def get_candidates(self, x, y_slots, y_intent, pos, *args) -> list:
+    def get_candidates(self, x, y_slots, y_intent, pos, *args):
         """
         Performs attack on a single example.
         :return: adversarial perturbation.
@@ -94,7 +90,7 @@ class BaseAdversarial:
 
         return xc, y_slots_c, y_intent
 
-    def attack(self, x, y_slots, y_intent, *args) -> tuple[list[list[str]], list[list[str]], list[str], list[float]]:
+    def attack(self, x, y_slots, y_intent, *args):
         num_objects = len(x)
 
         for idx in range(num_objects):
@@ -121,7 +117,7 @@ class BaseAdversarial:
         return x, y_slots, y_intent, current_loss
 
     @torch.no_grad()
-    def calculate_loss(self, x, y_slots, y_intent) -> list[float]:
+    def calculate_loss(self, x, y_slots, y_intent):
         """
         Calculates loss of model on an example.
         :param x: example utterance.
@@ -162,7 +158,7 @@ class BaseAdversarial:
         return losses.cpu().tolist()
 
     @torch.no_grad()
-    def attack_dataset(self, subset: str = 'test') -> dict[str, float]:
+    def attack_dataset(self, subset: str = 'test'):
         """
         Attacks atis subset.
         :param subset: atis subset.
@@ -209,7 +205,7 @@ class BaseAdversarial:
         loader = DataLoader(data, batch_size=8, drop_last=False, collate_fn=JointCollator(self.slot2idx))
 
         results = joint_evaluate(
-            self.model, loader, fp_16=True,
+            self.model, loader, self.device, fp_16=True,
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
@@ -233,13 +229,13 @@ class Pacifist(BaseAdversarial):
 
         self.num_examples = 1
 
-    def get_tokens(self, x, pos, *args) -> list[str]:
+    def get_tokens(self, x, pos, *args):
         pass
 
-    def get_candidates(self, x, y_slots, y_intent, pos, **kwargs) -> tuple[list, list]:
+    def get_candidates(self, x, y_slots, y_intent, pos, **kwargs):
         pass
 
-    def attack(self, x, y_slots, y_intent, *args) -> tuple[list[list[str]], list[list[str]], list[str], list[float]]:
+    def attack(self, x, y_slots, y_intent, *args):
         num_objects = len(x)
 
         for idx in range(num_objects):
@@ -261,14 +257,14 @@ class AdversarialWordLevel(BaseAdversarial):
 
         self.translations = torch.load('data/atis_test_translations/translations.pt')
 
-    def get_tokens(self, x, pos, *args) -> list[str]:
+    def get_tokens(self, x, pos, *args):
         try:
             return self.translations[self.base_language][self.attack_language][x[pos]].split()
         except KeyError:
             return None
 
 
-def mapping_alignments(lines, data) -> dict[int, dict[int, str]]:
+def mapping_alignments(lines, data):
     """
     Create mapping for alignments and dataset (alignments should be for this dataset).
     :param lines: lines generated with awesome-align.
@@ -320,7 +316,7 @@ class AdversarialAlignments(BaseAdversarial):
         super().change_attack_language(new_language)
         self.read_alignments()
 
-    def get_tokens(self, x, pos, *args) -> list[str]:
+    def get_tokens(self, x, pos, *args):
         alignments = args[0][0]
 
         try:
@@ -329,7 +325,7 @@ class AdversarialAlignments(BaseAdversarial):
             return None
 
     @torch.no_grad()
-    def attack_dataset(self, subset: str = 'test') -> dict[str, float]:
+    def attack_dataset(self, subset: str = 'test'):
         """
         Attacks atis subset.
         :param subset: atis subset.
@@ -379,7 +375,7 @@ class AdversarialAlignments(BaseAdversarial):
         loader = DataLoader(data, batch_size=8, drop_last=False, collate_fn=JointCollator(self.slot2idx))
 
         results = joint_evaluate(
-            self.model, loader, fp_16=True,
+            self.model, loader, self.device, fp_16=True,
             slot2idx=self.slot2idx, idx2slot=self.idx2slot
         )
 
@@ -432,7 +428,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
 
         return pd.DataFrame.from_dict(data)
 
-    def attack(self, x, y_slots, y_intent, *args) -> list[str]:
+    def attack(self, x, y_slots, y_intent, *args):
         if isinstance(x, str):
             x = x.split()
 
@@ -447,7 +443,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
 
         return x
 
-    def get_candidates(self, x, y_slots, y_intent, pos, *args) -> list:
+    def get_candidates(self, x, y_slots, y_intent, pos, *args):
         xc = deepcopy(x)
         y_slots_c = deepcopy(y_slots)
 

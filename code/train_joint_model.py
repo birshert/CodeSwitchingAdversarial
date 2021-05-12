@@ -26,7 +26,7 @@ SEED = 1234
 
 
 @torch.no_grad()
-def joint_evaluate(model, dataloader, p_bar=None, **kwargs):
+def joint_evaluate(model, dataloader, device, p_bar=None, **kwargs):
     model.eval()
 
     total_loss = 0
@@ -126,7 +126,8 @@ def main(config_path):
         for epoch in range(num_epoches):
             if log and wandb.config['log_metrics']:
                 evaluation_results = joint_evaluate(
-                    model, test_loader, p_bar, fp_16=wandb.config['fp-16'],
+                    model, test_loader, device,
+                    p_bar, fp_16=wandb.config['fp-16'],
                     epoch=epoch, num_epoches=num_epoches,
                     slot2idx=slot2idx, idx2slot=idx2slot
                 )
