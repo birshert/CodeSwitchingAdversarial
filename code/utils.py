@@ -102,13 +102,13 @@ def create_mapping(df):
     return slot2idx, idx2slot, intent2idx
 
 
-def load_config():
-    with open('config.yaml', 'r') as f:
+def load_config(config_path: str = 'config.yaml'):
+    with open(config_path, 'r') as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
-def save_config(config):
-    with open('config.yaml', 'w') as f:
+def save_config(config, config_path: str = 'config.yaml'):
+    with open(config_path, 'w') as f:
         yaml.dump(config, f, Dumper=yaml.SafeDumper)
 
 

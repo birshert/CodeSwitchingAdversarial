@@ -1,3 +1,4 @@
+import sys
 import warnings
 
 import torch
@@ -21,11 +22,6 @@ warnings.filterwarnings('ignore')
 
 set_global_logging_level()
 
-config = load_config()
-
-cuda_device = int('m-bert' in config['model_name'])
-
-device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
 SEED = 1234
 
 
@@ -90,13 +86,19 @@ def joint_evaluate(model, dataloader, p_bar=None, **kwargs):
     return results
 
 
-def main():
+def main(config_path):
+    config = load_config(config_path)
+
+    cuda_device = int('m-bert' in config['model_name'])
+
+    device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
     _set_seed(SEED)
+
     print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
 
     log = True
 
-    wandb.init(project='diploma', entity='birshert', mode='offline' if log else 'disabled', save_code=True)
+    wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
     wandb.config.update(config)
 
     model = model_mapping[wandb.config['model_name']](config=wandb.config)
@@ -166,4 +168,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[-1])
