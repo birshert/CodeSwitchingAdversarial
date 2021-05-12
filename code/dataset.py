@@ -160,7 +160,10 @@ def prepare_joint_datasets(config, model: BaseJointModel):
     :param model: model.
     :return: datasets, collator and misc.
     """
-    cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
+    if config['dataset'] == 'atis':
+        cached_path = f'data/{config["dataset"]}_{int(config["only_english"])}_cached_{model.__model_name__}'
+    else:
+        cached_path = f'data/{config["dataset"]}_cached_{model.__model_name__}'
 
     if os.path.exists(cached_path):
         train_dataset = torch.load(cached_path + '/train.pt')
@@ -169,8 +172,10 @@ def prepare_joint_datasets(config, model: BaseJointModel):
 
         return train_dataset, test_dataset, collator, slot2idx, idx2slot
 
-    train = read_atis('train')
-    test = read_atis('test')
+    languages = config['languages'] if not config['only_english'] else ['en']
+
+    train = read_atis('train', languages)
+    test = read_atis('test', languages)
 
     slot2idx, idx2slot, intent2idx = create_mapping(train)
 
