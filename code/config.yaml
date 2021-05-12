@@ -22,6 +22,6 @@ model_name: xlm-r
 num_epoches: 5
 num_examples: 4
 num_intent_labels: 23
-num_slot_labels: 143
+num_slot_labels: 121
 only_english: true
 slot_coef: 1.0

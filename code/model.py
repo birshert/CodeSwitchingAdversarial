@@ -135,7 +135,7 @@ class BaseJointModel(BaseModel):
 
     @property
     def __model_file_name__(self):
-        return f'model_{int(self.config["only_english"])}_{int(self.config["load_body"])}.pt'
+        return f'model_{int(self.config["only_english"])}_{int(self.config["load_adv_pretrained"])}.pt'
 
     @property
     def __model_name__(self):

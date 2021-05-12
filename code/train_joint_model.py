@@ -21,7 +21,11 @@ warnings.filterwarnings('ignore')
 
 set_global_logging_level()
 
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+config = load_config()
+
+cuda_device = int('m-bert' in config['model_name'])
+
+device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
 SEED = 1234
 
 
@@ -93,7 +97,7 @@ def main():
     log = True
 
     wandb.init(project='diploma', entity='birshert', mode='offline' if log else 'disabled', save_code=True)
-    wandb.config.update(load_config())
+    wandb.config.update(config)
 
     model = model_mapping[wandb.config['model_name']](config=wandb.config)
     model.to(device, non_blocking=True)
