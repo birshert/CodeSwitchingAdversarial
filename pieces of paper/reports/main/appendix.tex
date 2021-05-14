@@ -1,0 +1,25 @@
+\section*{Приложения}
+\addcontentsline{toc}{section}{Приложения}
+
+\subsection*{Приложение А. Алгоритм замены слотов в атаке}
+\addcontentsline{toc}{subsection}{Приложение А. Алгоритм замены слотов в атаке}
+
+\begin{algorithm}
+    \caption{Алгоритм замены слотов в атаке}
+    \begin{algorithmic}
+        \Function{ExtendSlotLabels}{slot\_label, num\_tokens}
+            \\
+            \ind slot\_labels = [slot\_label]
+            \ind\If{num\_tokens > 1}
+                    \ind\ind\If{slot\_label.startswith('B')}
+                                \\
+                                \ind\ind\ind slot\_labels += ['I' + slot\_label[1:]] $\cdot$ (num\_tokens - 1)
+                    \Else
+                                \\
+                                \ind\ind\ind slot\_labels $\cdot$= num\_tokens
+                    \EndIf
+            \EndIf \\
+            \ind\Return slot\_labels
+        \EndFunction
+    \end{algorithmic}\label{alg:algorithm3}
+\end{algorithm}
