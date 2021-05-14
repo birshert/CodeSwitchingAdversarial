@@ -20,16 +20,29 @@ def main():
     word_level_attacker.num_examples = config['num_examples']
     alignments_attacker.num_examples = config['num_examples']
 
+    model_name = f'{config["model_name"]}_{int(config["only_english"])}_{int(config["load_adv_pretrained"])}_test.csv'
+
     try:
+        print('Test set')
+
+        results = {}
+        pacifist.port_model()
+
+        for base_language in languages:
+            pacifist.change_base_language(base_language)
+            results[base_language] = pacifist.attack_dataset()
+
+        pacifist.port_model()
+
+        pd.DataFrame.from_dict(results).transpose().to_csv('results/' + model_name)
+
         base_language = 'en'
-        print(f'Attacking language {base_language}')
 
         pacifist.change_base_language(base_language)
         word_level_attacker.change_base_language(base_language)
         alignments_attacker.change_base_language(base_language)
 
         base_path = f'results/{base_language}/'
-        model_name = f'{config["model_name"]}_{int(config["only_english"])}_{int(config["load_adv_pretrained"])}.csv'
 
         if not os.path.exists(base_path):
             os.mkdir(base_path)
@@ -47,6 +60,8 @@ def main():
 
         # WORD LEVEL
 
+        print('Word level')
+
         word_level_attacker.port_model()
 
         for language in other_languages:
@@ -56,6 +71,8 @@ def main():
         word_level_attacker.port_model('cpu')
 
         # ALIGNMENTS
+
+        print('Alignments')
 
         alignments_attacker.port_model()
 
