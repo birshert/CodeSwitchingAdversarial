@@ -86,7 +86,7 @@ def joint_evaluate(model, dataloader, device, p_bar=None, **kwargs):
     return results
 
 
-def main(config_path):
+def main(config_path: str = 'config.yaml'):
     config = load_config(config_path)
 
     cuda_device = int('m-bert' in config['model_name'])
@@ -98,7 +98,15 @@ def main(config_path):
 
     log = True
 
-    wandb.init(project='diploma', entity='birshert', mode='online' if log else 'disabled', save_code=True)
+    run_name = config['model_name'] + ' en ' * config['only_english'] + ' adv' * config['load_adv_pretrained']
+
+    wandb.init(
+        project='diploma',
+        entity='birshert',
+        mode='online' if log else 'disabled',
+        save_code=True,
+        name=run_name
+    )
     wandb.config.update(config)
 
     model = model_mapping[wandb.config['model_name']](config=wandb.config)
