@@ -154,3 +154,6 @@ aligner
 */reports/*/*.out
 *.synctex*
 *.toc
+*.run.xml
+*.bib
+*.bcf

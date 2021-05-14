@@ -1,79 +1,221 @@
-\cite{devlin-etal-2019-bert}
+\subsection{Обучение моделей на датасете ATIS seven languages}
+В своей работе мы обучаем языковые модели решать задачу одновременной классификации интентов и разметки слотов в предложении.
+Эта задача заключается в определении желаемой цели запроса пользователя по предложению и классификации слов в предложении.
+
+\subsubsection{Датасет}
+В качестве датасета в своей работе мы выбрали датасет ATIS seven languages~\cite{Xu2020EndtoEndSA}.
+В этом датасете представлены семь языков из трёх языковых семей —
+Индо-Европейская (английский, немецкий, французский, испанский, португальский), Японо-рюкюская (японский) и Сино-тибетская (китайский).
+Датасет является параллельным корпусом для задачи классификации интентов и разметки слотов - в 2020 году он был переведён с английского языка на остальные шесть.
+В обучающей выборке содержится 4978 предложений для каждого языка, в тестовой 893 предложения для каждого языка.
+\parКаждый объект в датасете состоит из предложения, меток слов и интента.
+Перед началом работы с датасетом мы произвели предварительную очистку —
+убрали из обучающей и тестовой выборок объекты, для которых на любом из семи языков количество слов и количество слотов не совпадали.
+Таким образом, в обучающей выборке осталось 4884 объекта для каждого языка, в тестовой выборке 755 объектов для каждого языка.
+Для составления списка используемых слотов и интентов использовалась обучающая выборка на английском языке.
+Мы использовали 121 различную метку слотов и 23 различных метки интентов.
+Список id используемых объектов, а также списки используемых слотов и интентов можно найти в приложении.
+
+\subsubsection{Архитектура модели}
+В своей работе мы решаем задачу одновременной классификации интентов и разметки слотов в предложении с помощью одной модели.
+Модель имеет два выхода, первый предсказывает интенты, второй предсказывает метки слов.
+В качестве рассматриваемых архитектур были выбраны модели m-BERT~\cite{devlin-etal-2019-bert} и XLM-RoBERTa~\cite{Conneau2020UnsupervisedCR}.
+Обе эти модели являются одними из самых сильных мультиязычных моделей на текущий момент.
+Каждая из них предобучена на более чем ста языках.
+% TODO: дописать про размеры моделей.
+
+\subsubsection{Обучение}
+В своей работе мы будем сравнивать модели, обученные на всей обучающей выборке и только на части обучающей выборки на английском языке.
+Таким образом мы сможем проверить гипотезу о наличии кросс-язычных знаний у моделей.
+Тестовая выборка, которая будет нас интересовать в данном контексте состоит из всех семи языков, но мы оцениваем качество на каждом языке отдельно. \\
+Каждая из моделей обучалась с одинаковыми гиперпараметрами - 10 эпох на обучающей выборке с длиной шага обучения $10^{-5}$ и размером батча в 64 объекта.
+% TODO: что-нибудь еще написать + добавить графики обучения.
+% TODO: сделать результаты на каждом языке в тесте.
+
+\subsection{Адверсариальные атаки}
+В своей работе мы предлагаем два варианта gray-box адверсариальных атак — во время выполнения атаки мы имеем доступ к ошибке модели.
+Мы стремимся создать атаку такого рода, чтобы результирующая адверсариальная пертурбация предложения была как можно ближе к реалистичным предложениям со смешением кодов.
+Для этого мы заменяем часть токенов в предложении на их эквиваленты из других языков.
+Оценка качества на таких адверсариальных атаках может выступать в роли оценки снизу на качество соответствующих моделей в аналогичных задачах при наличии реального смешения кодов во входных данных. \\
+Так как большинство людей, которые могут использовать смешение кодов в своей речи билингвы, то в основном смешение кодов происходит между парой языков~\cite{bilinguals}.
+Таким образом, в своей работе мы предлагаем анализировать атаки состоящие во встраивании одного языка в другой.
+
+\subsubsection{Общий вид атаки}
+Общий принцип атаки одинаковый для обоих предлагаемых вариантов.
+Разница между методами заключается в способе генерации кандидатов на замену токену на $i-$ой позиции.
+В своей работе мы предлагаем следующий вид атаки - пусть мы имеем целевую модель, пару пример-метка и встраиваемый язык~\eqref{alg:algorithm}.
+Тогда мы перебираем токены в предложении в случайном порядке и стремимся заменить токен на его эквивалент из встраиваемого языка.
+Если это приведёт к увеличению ошибки модели, то мы заменяем токен на предложенного кандидата.
+
+\begin{algorithm}
+    \caption{Адверсариальная атака, общая схема}
+    \begin{algorithmic}
+        \Require{Пара пример-метка x, y; целевая модель $\mathcal{M}$; встраиваемый язык $\mathbb{L}$}
+        \Ensure{Адверсариальный пример $x'$} \\
+        $\mathcal{L}_{x}$ = GetLoss($\mathcal{M}$, x, y)
+        \For{i in permutation(len(x))}
+            \\
+            \ind Candidates = GetCandidates($\mathcal{M}$, x, y, token\_id = i) \\
+            \ind Losses = GetLoss($\mathcal{M}$, Candidates)
+            \ind\If{Candidates and max(Losses) > $\mathcal{L}_{x}$}
+                    \\
+                    \ind\ind$\mathcal{L}_{x}$ = max(Losses) \\
+                    \ind\ind x, y = Candidates[argmax(Losses)]
+            \EndIf
+        \EndFor \\
+        \Return x
+    \end{algorithmic}\label{alg:algorithm}
+\end{algorithm}
+
+\subsubsection{Word level атака}
+Первый предлагаемый нами вариант атаки заключается в генерации эквивалентов из других языков с помощью перевода токенов на соответствующие языки.
+Этот вариант является грубой оценкой снизу, так как он не учитывает контекста предложений и не учитывает многозначность слов. \\
+Для перевода слов на другие языки мы используем модель машинного перевода M2M 100 от компании Facebook ~\cite{Fan2020BeyondEM}.
+Она содержит 418 миллионов параметров.
+
+\begin{algorithm}
+    \caption{Word-level атака}
+    \begin{algorithmic}
+        \Require{Словарь переводов с исходного на встраиваемый язык $\mathbb{T}$}
+        \Function{GetCandidates}{$\mathcal{M}$, x, y, token\_id}
+            \ind\If{x[token\_id] in $\mathbb{T}[\mathbb{L}]$}
+                    \\
+                    \ind\ind token = $\mathbb{T}[\mathbb{L}]$[x[token\_id]]\\
+                    \ind\ind x[token\_id] = token
+            \EndIf \\
+            \Return x, y
+        \EndFunction
+    \end{algorithmic}\label{alg:algorithm1}
+\end{algorithm}
+
+% TODO: пример атаки.
+
+\subsubsection{Phrase-level атака}
+Второй предлагаемый нами вариант атаки заключается в генерации эквивалентов из других языков с помощью построения выравниваний между предложениями на разных языков.
+Кандидаты для каждого токена определяются как токены из предложения на встраиваемом языке, в которые был выровнен токен. \\
+Для построения выравниваний мы используем модель awesome-align на основе m-BERT~\cite{Dou2021WordAB}.
+
+\begin{algorithm}
+    \caption{Word-level атака}
+    \begin{algorithmic}
+        \Require{Выравнивание предложения на исходном языке к предложению на целевом языке $\mathbb{A}$}
+        \Function{GetCandidates}{$\mathcal{M}$, x, y, token\_id}
+            \ind\If{x[token\_id] in $\mathbb{A}[\mathbb{L}]$}
+                    \\
+                    \ind\ind tokens = $\mathbb{A}[\mathbb{L}]$[x[token\_id]]\\
+                    \ind\ind x[token\_id] = tokens\\
+                    \ind\ind y[token\_id] = ExtendSlotLabels(y[token\_id], len(tokens))
+            \EndIf \\
+            \Return x, y
+        \EndFunction
+    \end{algorithmic}\label{alg:algorithm2}
+\end{algorithm}
+
+% TODO: пример атаки.
+
+\subsection{Метод защиты от адверсариальных атак}
+В своей работе мы предлагаем метод защиты от предложенных выше адверсариальных атак.
+Гипотеза заключается в том, что данный метод позволит увеличить качество не только на адверсариальных пертурбациях, но и на реальных данных со смешением кодов.
+
+\subsubsection{Метод адверсариального предобучения}
+
+\subsection{Адверсариальные атаки на защищенные модели}
+В данной секции мы сравним результаты
+
+\subsubsection{Сравнение на тестовой выборке}
 
 \begin{table}[H]
-	\resizebox{\textwidth}{!}{
-		\begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-			\hline
-			& xlm-r & xlm-r en & xlm-r adv & xlm-r en + adv \\ \hline
-			Intent accuracy&$0.980$ & $0.902$ & $0.980$ & $0.963$ \\ \hline
-			Slot F1 score&$0.944$ & $0.870$ & $0.948$ & $0.899$ \\ \hline
-			Semantic accuracy&$0.826$ & $0.559$ & $0.842$ & $0.670$ \\ \hline
-			Loss&$0.317$ & $0.729$ & $0.293$ & $0.575$ \\ \hline
-		\end{tabular}
-	}\caption{Таблица сравнения моделей XLM-R между собой на тестовой выборке}\label{tab:table}
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
+            \hline
+            & xlm-r   & xlm-r en & xlm-r adv & xlm-r en + adv \\ \hline
+            Intent accuracy   & $0.980$ & $0.902$  & $0.980$   & $0.963$        \\ \hline
+            Slot F1 score     & $0.944$ & $0.870$  & $0.948$   & $0.899$        \\ \hline
+            Semantic accuracy & $0.826$ & $0.559$  & $0.842$   & $0.670$        \\ \hline
+            Loss              & $0.317$ & $0.729$  & $0.293$   & $0.575$        \\ \hline
+        \end{tabular}
+    }\caption{Таблица сравнения моделей XLM-R между собой на тестовой выборке}\label{tab:table}
 \end{table}
 
 \begin{table}[H]
-	\resizebox{\textwidth}{!}{
-		\begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-			\hline
-			& m-bert & m-bert en & m-bert adv & m-bert en + adv \\ \hline
-			Intent accuracy&$0.979$ & $0.952$ & $0.975$ & $0.948$ \\ \hline
-			Slot F1 score&$0.947$ & $0.899$ & $0.952$ & $0.908$ \\ \hline
-			Semantic accuracy&$0.854$ & $0.672$ & $0.846$ & $0.690$ \\ \hline
-			Loss&$0.353$ & $0.584$ & $0.328$ & $0.577$ \\ \hline
-		\end{tabular}
-	}\caption{Таблица сравнения моделей M-BERT между собой на тестовой выборке}\label{tab:table2}
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
+            \hline
+            & m-bert  & m-bert en & m-bert adv & m-bert en + adv \\ \hline
+            Intent accuracy   & $0.979$ & $0.952$   & $0.975$    & $0.948$         \\ \hline
+            Slot F1 score     & $0.947$ & $0.899$   & $0.952$    & $0.908$         \\ \hline
+            Semantic accuracy & $0.854$ & $0.672$   & $0.846$    & $0.690$         \\ \hline
+            Loss              & $0.353$ & $0.584$   & $0.328$    & $0.577$         \\ \hline
+        \end{tabular}
+    }\caption{Таблица сравнения моделей M-BERT между собой на тестовой выборке}\label{tab:table2}
+\end{table}
+
+% TODO: написать текст про сравнение и выводы из этого.
+
+\subsubsection{Сравнение для word-level атаки}
+
+\begin{table}[H]
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
+            \hline
+            & xlm-r             & xlm-r en          & xlm-r adv         & xlm-r en + adv    \\ \hline
+            Intent accuracy   & $0.885 \pm 0.035$ & $0.727 \pm 0.081$ & $0.893 \pm 0.037$ & $0.851 \pm 0.035$ \\ \hline
+            Slot F1 score     & $0.642 \pm 0.080$ & $0.550 \pm 0.069$ & $0.651 \pm 0.078$ & $0.568 \pm 0.065$ \\ \hline
+            Semantic accuracy & $0.179 \pm 0.097$ & $0.065 \pm 0.059$ & $0.191 \pm 0.105$ & $0.089 \pm 0.067$ \\ \hline
+            Loss              & $2.627 \pm 0.727$ & $3.232 \pm 0.809$ & $2.424 \pm 0.667$ & $2.624 \pm 0.612$ \\ \hline
+        \end{tabular}
+    }\caption{Таблица сравнения моделей XLM-R после word-level атаки}\label{tab:table3}
 \end{table}
 
 \begin{table}[H]
-	\resizebox{\textwidth}{!}{
-		\begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-			\hline
-			& xlm-r & xlm-r en & xlm-r adv & xlm-r en + adv \\ \hline
-			Intent accuracy&$0.885 \pm 0.035$ & $0.727 \pm 0.081$ & $0.893 \pm 0.037$ & $0.851 \pm 0.035$ \\ \hline
-			Slot F1 score&$0.642 \pm 0.080$ & $0.550 \pm 0.069$ & $0.651 \pm 0.078$ & $0.568 \pm 0.065$ \\ \hline
-			Semantic accuracy&$0.179 \pm 0.097$ & $0.065 \pm 0.059$ & $0.191 \pm 0.105$ & $0.089 \pm 0.067$ \\ \hline
-			Loss&$2.627 \pm 0.727$ & $3.232 \pm 0.809$ & $2.424 \pm 0.667$ & $2.624 \pm 0.612$ \\ \hline
-		\end{tabular}
-	}\caption{Таблица сравнения моделей XLM-R после атаки Word level}\label{tab:table3}
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
+            \hline
+            & m-bert            & m-bert en         & m-bert adv        & m-bert en + adv   \\ \hline
+            Intent accuracy   & $0.866 \pm 0.028$ & $0.771 \pm 0.032$ & $0.863 \pm 0.023$ & $0.781 \pm 0.046$ \\ \hline
+            Slot F1 score     & $0.556 \pm 0.095$ & $0.444 \pm 0.083$ & $0.585 \pm 0.086$ & $0.489 \pm 0.064$ \\ \hline
+            Semantic accuracy & $0.120 \pm 0.079$ & $0.056 \pm 0.053$ & $0.145 \pm 0.088$ & $0.090 \pm 0.065$ \\ \hline
+            Loss              & $3.137 \pm 0.701$ & $3.335 \pm 0.662$ & $2.878 \pm 0.611$ & $3.019 \pm 0.512$ \\ \hline
+        \end{tabular}
+    }\caption{Таблица сравнения моделей M-BERT после word-level атаки}\label{tab:table4}
+\end{table}
+
+% TODO: написать текст про сравнение и выводы из этого.
+
+\subsubsection{Сравнение для phrase-level атаки}
+
+\begin{table}[H]
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
+            \hline
+            & xlm-r             & xlm-r en          & xlm-r adv         & xlm-r en + adv    \\ \hline
+            Intent accuracy   & $0.947 \pm 0.006$ & $0.728 \pm 0.136$ & $0.954 \pm 0.009$ & $0.864 \pm 0.040$ \\ \hline
+            Slot F1 score     & $0.708 \pm 0.140$ & $0.581 \pm 0.109$ & $0.721 \pm 0.148$ & $0.641 \pm 0.129$ \\ \hline
+            Semantic accuracy & $0.366 \pm 0.156$ & $0.105 \pm 0.074$ & $0.405 \pm 0.164$ & $0.228 \pm 0.138$ \\ \hline
+            Loss              & $2.026 \pm 1.152$ & $2.860 \pm 0.826$ & $1.992 \pm 1.248$ & $1.943 \pm 0.743$ \\ \hline
+        \end{tabular}
+    }\caption{Таблица сравнения моделей XLM-R после phrase-level атаки}\label{tab:table5}
 \end{table}
 
 \begin{table}[H]
-	\resizebox{\textwidth}{!}{
-		\begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-			\hline
-			& m-bert & m-bert en & m-bert adv & m-bert en + adv \\ \hline
-			Intent accuracy&$0.866 \pm 0.028$ & $0.771 \pm 0.032$ & $0.863 \pm 0.023$ & $0.781 \pm 0.046$ \\ \hline
-			Slot F1 score&$0.556 \pm 0.095$ & $0.444 \pm 0.083$ & $0.585 \pm 0.086$ & $0.489 \pm 0.064$ \\ \hline
-			Semantic accuracy&$0.120 \pm 0.079$ & $0.056 \pm 0.053$ & $0.145 \pm 0.088$ & $0.090 \pm 0.065$ \\ \hline
-			Loss&$3.137 \pm 0.701$ & $3.335 \pm 0.662$ & $2.878 \pm 0.611$ & $3.019 \pm 0.512$ \\ \hline
-		\end{tabular}
-	}\caption{Таблица сравнения моделей M-BERT после атаки Word level}\label{tab:table4}
+    \resizebox{\textwidth}{!}{
+        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
+            \hline
+            & m-bert            & m-bert en         & m-bert adv        & m-bert en + adv   \\ \hline
+            Intent accuracy   & $0.942 \pm 0.004$ & $0.828 \pm 0.020$ & $0.950 \pm 0.005$ & $0.818 \pm 0.035$ \\ \hline
+            Slot F1 score     & $0.700 \pm 0.127$ & $0.536 \pm 0.096$ & $0.728 \pm 0.137$ & $0.577 \pm 0.150$ \\ \hline
+            Semantic accuracy & $0.348 \pm 0.127$ & $0.113 \pm 0.055$ & $0.406 \pm 0.158$ & $0.198 \pm 0.113$ \\ \hline
+            Loss              & $2.118 \pm 1.143$ & $2.474 \pm 0.591$ & $1.935 \pm 1.135$ & $2.252 \pm 0.825$ \\ \hline
+        \end{tabular}
+    }\caption{Таблица сравнения моделей M-BERT после phrase-level атаки}\label{tab:table6}
 \end{table}
 
-\begin{table}[H]
-	\resizebox{\textwidth}{!}{
-		\begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-			\hline
-			& xlm-r & xlm-r en & xlm-r adv & xlm-r en + adv \\ \hline
-			Intent accuracy&$0.947 \pm 0.006$ & $0.728 \pm 0.136$ & $0.954 \pm 0.009$ & $0.864 \pm 0.040$ \\ \hline
-			Slot F1 score&$0.708 \pm 0.140$ & $0.581 \pm 0.109$ & $0.721 \pm 0.148$ & $0.641 \pm 0.129$ \\ \hline
-			Semantic accuracy&$0.366 \pm 0.156$ & $0.105 \pm 0.074$ & $0.405 \pm 0.164$ & $0.228 \pm 0.138$ \\ \hline
-			Loss&$2.026 \pm 1.152$ & $2.860 \pm 0.826$ & $1.992 \pm 1.248$ & $1.943 \pm 0.743$ \\ \hline
-		\end{tabular}
-	}\caption{Таблица сравнения моделей XLM-R после атаки Alignments}\label{tab:table5}
-\end{table}
+% TODO: написать текст про сравнение и выводы из этого.
 
-\begin{table}[H]
-	\resizebox{\textwidth}{!}{
-		\begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-			\hline
-			& m-bert & m-bert en & m-bert adv & m-bert en + adv \\ \hline
-			Intent accuracy&$0.942 \pm 0.004$ & $0.828 \pm 0.020$ & $0.950 \pm 0.005$ & $0.818 \pm 0.035$ \\ \hline
-			Slot F1 score&$0.700 \pm 0.127$ & $0.536 \pm 0.096$ & $0.728 \pm 0.137$ & $0.577 \pm 0.150$ \\ \hline
-			Semantic accuracy&$0.348 \pm 0.127$ & $0.113 \pm 0.055$ & $0.406 \pm 0.158$ & $0.198 \pm 0.113$ \\ \hline
-			Loss&$2.118 \pm 1.143$ & $2.474 \pm 0.591$ & $1.935 \pm 1.135$ & $2.252 \pm 0.825$ \\ \hline
-		\end{tabular}
-	}\caption{Таблица сравнения моделей M-BERT после атаки Alignments}\label{tab:table6}
-\end{table}
+\subsection{Результаты}
+
+% TODO: написать текст про результаты сравнения.
+
+\subsubsection{Кросс-язычные знания в моделях}
+\subsubsection{Качество моделей после адверсариальных атак}
+\subsubsection{Влияние метода адверсариального предобучения}

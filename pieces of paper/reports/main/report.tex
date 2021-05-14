@@ -1,5 +1,5 @@
 % Preamble
-\documentclass[a4paper, 12pt]{article}
+\documentclass[a4paper,14pt]{extarticle}
 
 % Packages
 \usepackage{geometry}
@@ -18,7 +18,6 @@
 \usepackage{subcaption}
 \usepackage{listings}
 \usepackage[colorlinks, linkcolor=blue, urlcolor=blue]{hyperref}
-\usepackage{cite}
 \usepackage{indentfirst}
 
 \hypersetup{
@@ -32,10 +31,13 @@
 \usepackage{amsfonts}
 \usepackage{algorithmicx}
 \usepackage{algpseudocode}
-
+\usepackage{csquotes}
 
 \usepackage{booktabs}
 \usepackage{longtable}
+
+\usepackage[sorting=nyt, backend=bibtex]{biblatex}
+\addbibresource{bibliography.bib}
 
 \geometry{left=2.5cm}  % левое поле
 \geometry{right=1.5cm}  % правое поле
@@ -51,6 +53,8 @@
 \renewcommand{\labelenumiii}{\arabic{enumi}.\arabic{enumii}.\arabic{enumiii}.}  % Меняем везде перечисления на цифра.цифра
 
 \DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\ind}{\hspace{\algorithmicindent}}
+
 
 % Document
 \begin{document}
@@ -143,10 +147,8 @@
 %%%%%%%%%%%%%%%%%%
 %  СПИСОК ЛИТРЫ  %
 %%%%%%%%%%%%%%%%%%
+    \printbibliography
 
-
-    \bibliography{bibliography}
-    \bibliographystyle{plain}
 %%%%%%%%%%%%%%%%%%
 %  СПИСОК ЛИТРЫ  %
 %%%%%%%%%%%%%%%%%%
