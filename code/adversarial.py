@@ -25,13 +25,18 @@ class BaseAdversarial:
     Implements basic init + attack dataset + calculate loss functions.
     """
 
-    def __init__(self, base_language: str = 'en', attack_language: str = None, init_model: bool = True):
+    def __init__(
+            self, base_language: str = 'en', attack_language: str = None,
+            init_model: bool = True, config_path: str = 'config.yaml'
+    ):
         self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train', ['en']))
         self.collator = JointCollator(self.slot2idx)
 
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.config = load_config(config_path)
 
-        self.config = load_config()
+        cuda_device = int('m-bert' in self.config['model_name'])
+
+        self.device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
 
         if init_model:
             self.model = model_mapping[self.config['model_name']](config=self.config)
@@ -224,8 +229,11 @@ class Pacifist(BaseAdversarial):
     No adversarial attack (passing examples through).
     """
 
-    def __init__(self, base_language: str = 'en', attack_language: str = None, init_model: bool = True):
-        super().__init__(base_language, attack_language, init_model)
+    def __init__(
+            self, base_language: str = 'en', attack_language: str = None,
+            init_model: bool = True, config_path: str = 'config.yaml'
+    ):
+        super().__init__(base_language, attack_language, init_model, config_path)
 
         self.num_examples = 1
 
@@ -252,8 +260,11 @@ class AdversarialWordLevel(BaseAdversarial):
     Translations are generated with dictionaries from word2word library.
     """
 
-    def __init__(self, base_language: str = 'en', attack_language: str = None, init_model: bool = True):
-        super().__init__(base_language, attack_language, init_model)
+    def __init__(
+            self, base_language: str = 'en', attack_language: str = None,
+            init_model: bool = True, config_path: str = 'config.yaml'
+    ):
+        super().__init__(base_language, attack_language, init_model, config_path)
 
         self.translations = torch.load('data/atis_test_translations/translations.pt')
 
@@ -297,9 +308,9 @@ class AdversarialAlignments(BaseAdversarial):
 
     def __init__(
             self, base_language: str = 'en', attack_language: str = None,
-            init_model: bool = True, subset: str = 'test'
+            init_model: bool = True, config_path: str = 'config.yaml', subset: str = 'test'
     ):
-        super().__init__(base_language, attack_language, init_model)
+        super().__init__(base_language, attack_language, init_model, config_path)
 
         self.subset = subset
 
@@ -395,10 +406,11 @@ class RandomAdversarialAlignments(AdversarialAlignments):
     """
 
     def __init__(
-            self, base_language: str = 'en', attack_language: str = None, init_model: bool = False,
-            subset: str = 'test', perturbation_probability: float = 0.5, num_examples: int = 1
+            self, base_language: str = 'en', attack_language: str = None,
+            init_model: bool = True, config_path: str = 'config.yaml', subset: str = 'test',
+            perturbation_probability: float = 0.5, num_examples: int = 1
     ):
-        super().__init__(base_language, attack_language, subset=subset, init_model=init_model)
+        super().__init__(base_language, attack_language, init_model, config_path, subset)
 
         self.num_examples = num_examples
         self.perturbation_probability = perturbation_probability

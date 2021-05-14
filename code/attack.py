@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pandas as pd
 
@@ -8,19 +9,19 @@ from adversarial import Pacifist
 from utils import load_config
 
 
-def main():
-    config = load_config()
+def main(config_path: str = 'config.yaml'):
+    config = load_config(config_path)
 
     languages = config['languages']
 
-    pacifist = Pacifist()
-    word_level_attacker = AdversarialWordLevel()
-    alignments_attacker = AdversarialAlignments()
+    pacifist = Pacifist(config_path=config_path)
+    word_level_attacker = AdversarialWordLevel(config_path=config_path)
+    alignments_attacker = AdversarialAlignments(config_path=config_path)
 
     word_level_attacker.num_examples = config['num_examples']
     alignments_attacker.num_examples = config['num_examples']
 
-    model_name = f'{config["model_name"]}_{int(config["only_english"])}_{int(config["load_adv_pretrained"])}_test.csv'
+    model_name = f'{config["model_name"]}_{int(config["only_english"])}_{int(config["load_adv_pretrained"])}.csv'
 
     try:
         print('Test set')
@@ -34,7 +35,10 @@ def main():
 
         pacifist.port_model()
 
-        pd.DataFrame.from_dict(results).transpose().to_csv('results/' + model_name)
+        if not os.path.exists('results/test/'):
+            os.mkdir('results/test/')
+
+        pd.DataFrame.from_dict(results).transpose().to_csv('results/test/' + model_name)
 
         base_language = 'en'
 
@@ -91,4 +95,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[-1])
