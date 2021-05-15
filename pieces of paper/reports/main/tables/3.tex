@@ -1,0 +1,48 @@
+\begin{table}[H]
+	\resizebox{\textwidth}{!}{
+		\begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|}
+			\hline
+			& de & es & fr & ja & pt & zh \\ \hline
+			xlm-r&$0.954$ & $0.946$ & $0.928$ & $0.952$ & $0.964$ & $0.950$ \\ \hline
+			m-bert&$0.948$ & $0.935$ & $0.939$ & $0.951$ & $0.940$ & $0.934$ \\ \hline
+			xlm-r en&$0.808$ & $0.836$ & $0.740$ & $0.750$ & $0.442$ & $0.784$ \\ \hline
+			m-bert en&$0.809$ & $0.833$ & $0.834$ & $0.805$ & $0.861$ & $0.829$ \\ \hline
+			xlm-r adv&$0.959$ & $0.958$ & $0.930$ & $0.960$ & $0.958$ & $0.947$ \\ \hline
+			m-bert adv&$0.956$ & $0.950$ & $0.944$ & $0.958$ & $0.955$ & $0.946$ \\ \hline
+			xlm-r en + adv&$0.870$ & $0.857$ & $0.811$ & $0.795$ & $0.853$ & $0.776$ \\ \hline
+			m-bert en + adv&$0.846$ & $0.890$ & $0.893$ & $0.766$ & $0.901$ & $0.784$ \\ \hline
+		\end{tabular}
+	}\caption{Сравнение моделей между собой после phrase-level атаки на тестовую выборку датасета MultiAtis++ по метрике \textbf{Intent accuracy}}\label{tab:table6}
+\end{table}
+\begin{table}[H]
+	\resizebox{\textwidth}{!}{
+		\begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|}
+			\hline
+			& de & es & fr & ja & pt & zh \\ \hline
+			xlm-r&$0.802$ & $0.829$ & $0.751$ & $0.444$ & $0.813$ & $0.609$ \\ \hline
+			m-bert&$0.784$ & $0.804$ & $0.758$ & $0.450$ & $0.783$ & $0.619$ \\ \hline
+			xlm-r en&$0.627$ & $0.704$ & $0.569$ & $0.365$ & $0.680$ & $0.561$ \\ \hline
+			m-bert en&$0.539$ & $0.699$ & $0.531$ & $0.366$ & $0.530$ & $0.563$ \\ \hline
+			xlm-r adv&$0.809$ & $0.847$ & $0.771$ & $0.432$ & $0.820$ & $0.617$ \\ \hline
+			m-bert adv&$0.807$ & $0.848$ & $0.790$ & $0.446$ & $0.822$ & $0.635$ \\ \hline
+			xlm-r en + adv&$0.683$ & $0.776$ & $0.648$ & $0.326$ & $0.721$ & $0.570$ \\ \hline
+			m-bert en + adv&$0.613$ & $0.754$ & $0.621$ & $0.324$ & $0.631$ & $0.523$ \\ \hline
+		\end{tabular}
+	}\caption{Сравнение моделей между собой после phrase-level атаки на тестовую выборку датасета MultiAtis++ по метрике \textbf{Slots F1 score}}\label{tab:table7}
+\end{table}
+\begin{table}[H]
+	\resizebox{\textwidth}{!}{
+		\begin{tabular}{|>{\bfseries}l|c|c|c|c|c|c|}
+			\hline
+			& de & es & fr & ja & pt & zh \\ \hline
+			xlm-r&$0.511$ & $0.511$ & $0.336$ & $0.115$ & $0.522$ & $0.209$ \\ \hline
+			m-bert&$0.487$ & $0.438$ & $0.344$ & $0.114$ & $0.433$ & $0.256$ \\ \hline
+			xlm-r en&$0.163$ & $0.229$ & $0.099$ & $0.013$ & $0.070$ & $0.064$ \\ \hline
+			m-bert en&$0.122$ & $0.219$ & $0.085$ & $0.041$ & $0.087$ & $0.106$ \\ \hline
+			xlm-r adv&$0.538$ & $0.536$ & $0.347$ & $0.140$ & $0.536$ & $0.256$ \\ \hline
+			m-bert adv&$0.544$ & $0.551$ & $0.466$ & $0.136$ & $0.559$ & $0.286$ \\ \hline
+			xlm-r en + adv&$0.303$ & $0.375$ & $0.196$ & $0.008$ & $0.322$ & $0.079$ \\ \hline
+			m-bert en + adv&$0.254$ & $0.358$ & $0.241$ & $0.019$ & $0.306$ & $0.109$ \\ \hline
+		\end{tabular}
+	}\caption{Сравнение моделей между собой после phrase-level атаки на тестовую выборку датасета MultiAtis++ по метрике \textbf{Semantic accuracy}}\label{tab:table8}
+\end{table}

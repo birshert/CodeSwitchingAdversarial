@@ -186,7 +186,10 @@
 Мы дообучаем обе мультиязычные модели m-BERT и XLM-RoBERTa с одинаковыми гиперпараметрами - 10 эпох с размером батча 64 и длиной шага $10^{-5}$.
 После дообучения мы сохраняем тело модели для дальнейшего использования.
 
-\subsubsection{Генерация адверсариальной выборки}
+% TODO: вставить графики обучения.
+
+\subsubsection{Загрузка дообученного тела модели}
+Перед обучением мультиязычной модели для задачи одновременного заполнения слотов и классификации интентов мы загружаем дообученное тело модели.
 
 \subsection{Результаты}
 
@@ -194,110 +197,15 @@
 
 \subsubsection{Кросс-язычные знания в моделях}
 
-% TODO: написать текст про знания, на основе таблиц.
+\input{tables/1}
 
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & xlm-r   & xlm-r en & xlm-r adv & xlm-r en + adv \\ \hline
-            Intent accuracy   & $0.980$ & $0.902$  & $0.981$   & $0.928$        \\ \hline
-            Slot F1 score     & $0.944$ & $0.870$  & $0.947$   & $0.888$        \\ \hline
-            Semantic accuracy & $0.826$ & $0.559$  & $0.833$   & $0.613$        \\ \hline
-            Loss              & $0.317$ & $0.729$  & $0.320$   & $0.621$        \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей XLM-R между собой на тестовой выборке (английский язык)}\label{tab:table}
-\end{table}
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & m-bert  & m-bert en & m-bert adv & m-bert en + adv \\ \hline
-            Intent accuracy   & $0.979$ & $0.952$   & $0.975$    & $0.959$         \\ \hline
-            Slot F1 score     & $0.947$ & $0.899$   & $0.950$    & $0.900$         \\ \hline
-            Semantic accuracy & $0.854$ & $0.672$   & $0.861$    & $0.674$         \\ \hline
-            Loss              & $0.353$ & $0.584$   & $0.326$    & $0.567$         \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей M-BERT между собой на тестовой выборке (английский язык)}\label{tab:table2}
-\end{table}
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & xlm-r             & xlm-r en          & xlm-r adv         & xlm-r en + adv    \\ \hline
-            Intent accuracy   & $0.969 \pm 0.004$ & $0.840 \pm 0.044$ & $0.970 \pm 0.004$ & $0.860 \pm 0.043$ \\ \hline
-            Slot F1 score     & $0.928 \pm 0.011$ & $0.669 \pm 0.063$ & $0.930 \pm 0.013$ & $0.675 \pm 0.113$ \\ \hline
-            Semantic accuracy & $0.775 \pm 0.044$ & $0.181 \pm 0.107$ & $0.781 \pm 0.048$ & $0.245 \pm 0.167$ \\ \hline
-            Loss              & $0.399 \pm 0.055$ & $1.498 \pm 0.368$ & $0.409 \pm 0.063$ & $1.453 \pm 0.525$ \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей XLM-R между собой на тестовой выборке (все языки кроме английского)}\label{tab:table3}
-\end{table}
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & m-bert            & m-bert en         & m-bert adv        & m-bert en + adv   \\ \hline
-            Intent accuracy   & $0.964 \pm 0.008$ & $0.828 \pm 0.043$ & $0.967 \pm 0.006$ & $0.837 \pm 0.072$ \\ \hline
-            Slot F1 score     & $0.927 \pm 0.020$ & $0.616 \pm 0.093$ & $0.929 \pm 0.015$ & $0.576 \pm 0.101$ \\ \hline
-            Semantic accuracy & $0.776 \pm 0.064$ & $0.204 \pm 0.103$ & $0.779 \pm 0.055$ & $0.219 \pm 0.117$ \\ \hline
-            Loss              & $0.425 \pm 0.093$ & $1.584 \pm 0.348$ & $0.382 \pm 0.057$ & $1.794 \pm 0.768$ \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей M-BERT между собой на тестовой выборке (все языки кроме английского)}\label{tab:table4}
-\end{table}
+% TODO: написать текст про знания, на основе таблиц.
 
 \subsubsection{Качество моделей после адверсариальных атак}
 
+\input{tables/2}
+\input{tables/3}
+
 Word-level атака значительно уменьшила качество для обеих моделей, причем M-BERT справился с этой атакой хуже.
-
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & xlm-r             & xlm-r en          & xlm-r adv         & xlm-r en + adv    \\ \hline
-            Intent accuracy   & $0.876 \pm 0.034$ & $0.721 \pm 0.086$ & $0.888 \pm 0.033$ & $0.769 \pm 0.079$ \\ \hline
-            Slot F1 score     & $0.642 \pm 0.083$ & $0.550 \pm 0.068$ & $0.640 \pm 0.088$ & $0.554 \pm 0.076$ \\ \hline
-            Semantic accuracy & $0.177 \pm 0.101$ & $0.065 \pm 0.063$ & $0.174 \pm 0.102$ & $0.101 \pm 0.070$ \\ \hline
-            Loss              & $2.662 \pm 0.737$ & $3.234 \pm 0.807$ & $2.553 \pm 0.669$ & $2.905 \pm 0.562$ \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей XLM-R после word-level атаки}\label{tab:table5}
-\end{table}
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & m-bert            & m-bert en         & m-bert adv        & m-bert en + adv   \\ \hline
-            Intent accuracy   & $0.863 \pm 0.025$ & $0.771 \pm 0.028$ & $0.893 \pm 0.017$ & $0.819 \pm 0.047$ \\ \hline
-            Slot F1 score     & $0.553 \pm 0.098$ & $0.447 \pm 0.084$ & $0.581 \pm 0.085$ & $0.455 \pm 0.069$ \\ \hline
-            Semantic accuracy & $0.117 \pm 0.075$ & $0.055 \pm 0.051$ & $0.155 \pm 0.085$ & $0.081 \pm 0.054$ \\ \hline
-            Loss              & $3.169 \pm 0.689$ & $3.338 \pm 0.667$ & $2.860 \pm 0.687$ & $2.959 \pm 0.574$ \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей M-BERT после word-level атаки}\label{tab:table6}
-\end{table}
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & xlm-r             & xlm-r en          & xlm-r adv         & xlm-r en + adv    \\ \hline
-            Intent accuracy   & $0.949 \pm 0.011$ & $0.727 \pm 0.131$ & $0.952 \pm 0.011$ & $0.827 \pm 0.035$ \\ \hline
-            Slot F1 score     & $0.708 \pm 0.139$ & $0.584 \pm 0.111$ & $0.716 \pm 0.147$ & $0.621 \pm 0.146$ \\ \hline
-            Semantic accuracy & $0.368 \pm 0.161$ & $0.106 \pm 0.071$ & $0.392 \pm 0.156$ & $0.214 \pm 0.133$ \\ \hline
-            Loss              & $2.032 \pm 1.156$ & $2.860 \pm 0.839$ & $2.032 \pm 1.233$ & $2.113 \pm 0.637$ \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей XLM-R после phrase-level атаки}\label{tab:table7}
-\end{table}
-\begin{table}[H]
-    \resizebox{\textwidth}{!}{
-        \begin{tabular}{|>{\bfseries}l|c|c|c|c|}
-            \hline
-            & m-bert            & m-bert en         & m-bert adv        & m-bert en + adv   \\ \hline
-            Intent accuracy   & $0.941 \pm 0.006$ & $0.829 \pm 0.018$ & $0.951 \pm 0.005$ & $0.847 \pm 0.054$ \\ \hline
-            Slot F1 score     & $0.700 \pm 0.127$ & $0.538 \pm 0.097$ & $0.725 \pm 0.142$ & $0.578 \pm 0.132$ \\ \hline
-            Semantic accuracy & $0.345 \pm 0.128$ & $0.110 \pm 0.055$ & $0.424 \pm 0.159$ & $0.214 \pm 0.116$ \\ \hline
-            Loss              & $2.131 \pm 1.138$ & $2.463 \pm 0.585$ & $1.970 \pm 1.196$ & $2.159 \pm 0.755$ \\ \hline
-        \end{tabular}
-    }\caption{Сравнение моделей M-BERT после phrase-level атаки}\label{tab:table8}
-\end{table}
-
-Как видно по таблицам~\eqref{tab:table5},~\eqref{tab:table6},~\eqref{tab:table7},~\eqref{tab:table8}
 
 \subsubsection{Влияние метода адверсариального предобучения}
