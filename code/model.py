@@ -95,7 +95,7 @@ class BaseModel(nn.Module):
         if not os.path.exists(self.__cache_path__):
             raise OSError('Path does not exist, model cannot be loaded')
 
-        self.load_state_dict(torch.load(self.__cache_path__ + self.__model_file_name__))
+        self.load_state_dict(torch.load(self.__cache_path__ + self.__model_file_name__, map_location='cpu'))
 
 
 class BaseJointModel(BaseModel):
@@ -188,7 +188,7 @@ class BaseJointModel(BaseModel):
         if not os.path.exists(cache_path):
             raise OSError('Path does not exist, model cannot be loaded')
 
-        self.model.load_state_dict(torch.load(cache_path + 'body.pt'))
+        self.model.load_state_dict(torch.load(cache_path + 'body.pt', map_location='cpu'))
 
 
 class BaseMLMModel(BaseModel):
