@@ -1,6 +1,6 @@
 --find-links https://download.pytorch.org/whl/torch_stable.html
 
-transformers==4.5.1
+transformers==4.6.0
 numpy==1.20.3
 torch==1.8.1+cu111
 tqdm==4.60.0
@@ -9,3 +9,5 @@ seqeval==1.2.2
 pandas==1.2.4
 PyYAML==5.4.1
 scikit-learn==0.24.2
+more_itertools
+sentencepiece

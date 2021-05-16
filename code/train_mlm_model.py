@@ -31,9 +31,13 @@ def main(config_path: str = 'config.yaml'):
     device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
     _set_seed(SEED)
 
-    print('Using device {}'.format(torch.cuda.get_device_name() if torch.cuda.is_available() else 'cpu'))
+    print(
+        'Using device {}'.format(
+            torch.cuda.get_device_name() + f':{cuda_device}' if torch.cuda.is_available() else 'cpu'
+        )
+    )
 
-    log = True
+    log = config['log']
 
     run_name = config['model_name']
 
