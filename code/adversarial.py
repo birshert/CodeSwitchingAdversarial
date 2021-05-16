@@ -30,11 +30,12 @@ class BaseAdversarial:
             init_model: bool = True, config_path: str = 'config.yaml'
     ):
         self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train', ['en']))
+        self.idx2intent = {value: key for key, value in self.intent2idx.items()}
         self.collator = JointCollator(self.slot2idx)
 
         self.config = load_config(config_path)
 
-        cuda_device = int('m-bert' in self.config['model_name'])
+        cuda_device = min(int('m-bert' in self.config['model_name']), torch.cuda.device_count() - 1)
 
         self.device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
 
@@ -161,6 +162,49 @@ class BaseAdversarial:
         losses = self.model.calculate_loss(**batch)
 
         return losses.cpu().tolist()
+
+    @torch.no_grad()
+    def predict(self, x, y_slots, y_intent):
+        tokens, slot_labels = tokenize_and_preserve_labels(
+            self.model.tokenizer, x, y_slots, self.slot2idx
+        )
+
+        data = []
+
+        input_ids = torch.tensor(
+            self.model.tokenizer.convert_tokens_to_ids(tokens),
+            dtype=torch.long,
+        )
+
+        slot_labels = torch.tensor(
+            slot_labels,
+            dtype=torch.long,
+        )
+
+        intent = torch.tensor(
+            self.intent2idx.get(y_intent, self.intent2idx['UNK']),
+            dtype=torch.long,
+        )
+
+        data.append((input_ids, slot_labels, intent))
+
+        batch = self.collator(data)
+        batch = {key: batch[key].to(self.device) for key in batch.keys()}
+
+        loss, intent_logits, slot_logits = self.model(**batch)
+
+        intent_true = intent.item()
+        slot_true = slot_labels
+
+        intent_pred = intent_logits.cpu().argmax(dim=-1)[0].item()
+        slot_preds = slot_logits.cpu().argmax(dim=-1)[0]
+
+        return (
+                   self.idx2intent[intent_true],
+                   self.idx2intent[intent_pred],
+                   list(map(lambda s: self.idx2slot[s.item()], slot_true)),
+                   list(map(lambda s: self.idx2slot[s.item()], slot_preds))
+               )
 
     @torch.no_grad()
     def attack_dataset(self, subset: str = 'test'):

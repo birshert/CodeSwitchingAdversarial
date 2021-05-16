@@ -89,7 +89,7 @@ def joint_evaluate(model, dataloader, device, p_bar=None, **kwargs):
 def main(config_path: str = 'config.yaml'):
     config = load_config(config_path)
 
-    cuda_device = int('m-bert' in config['model_name'])
+    cuda_device = min(int('m-bert' in config['model_name']), torch.cuda.device_count() - 1)
 
     device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
     _set_seed(SEED)
