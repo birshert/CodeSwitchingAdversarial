@@ -14,10 +14,10 @@
         \begin{tabular}{|>{\bfseries}c|ccccccc|}
             \hline
             Intent & \multicolumn{7}{c|}{ atis\_flight } \\ \hline
-            Utterance EN   & show  & me  & flights & from & montreal             & to   & orlando            \\ \hline
-            Slot labels EN & O     & O   & O       & O    & B-fromloc.city\_name & O    & B-toloc.city\_name \\ \hline
-            Utterance DE   & Zeige & mir & Flüge   & von  & Montreal             & nach & Orlando            \\ \hline
-            Slot labels DE & O     & O   & O       & O    & B-fromloc.city\_name & O    & B-toloc.city\_name \\ \hline
+            Utterance en   & show  & me  & flights & from & montreal             & to   & orlando            \\ \hline
+            Slot labels en & O     & O   & O       & O    & B-fromloc.city\_name & O    & B-toloc.city\_name \\ \hline
+            Utterance de   & Zeige & mir & Flüge   & von  & Montreal             & nach & Orlando            \\ \hline
+            Slot labels de & O     & O   & O       & O    & B-fromloc.city\_name & O    & B-toloc.city\_name \\ \hline
         \end{tabular}
     }\caption{Пример объекта из датасета MultiAtis++. На примере представлен объект на английском и немецком языке.}\label{tab:table}
 \end{table}
@@ -122,7 +122,7 @@
     \end{algorithmic}\label{alg:algorithm1}
 \end{algorithm}
 
-% TODO: пример атаки.
+\input{tables/7}
 
 \subsubsection{Phrase-level атака}
 Второй предлагаемый нами вариант атаки заключается в генерации эквивалентов из других языков с помощью построения выравниваний между предложениями на разных языках.
@@ -147,7 +147,7 @@
     \end{algorithmic}\label{alg:algorithm2}
 \end{algorithm}
 
-% TODO: пример атаки.
+\input{tables/8}
 
 \subsection{Метод адверсариального предобучения для защиты от адверсариальных атак}
 В своей работе мы предлагаем метод защиты от предложенных выше адверсариальных атак.

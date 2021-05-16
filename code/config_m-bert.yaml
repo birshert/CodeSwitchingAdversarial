@@ -19,7 +19,7 @@ log: false
 log_interval: 50
 log_metrics: true
 mlm_probability: 0.15
-model_name: xlm-r
+model_name: m-bert
 num_epoches: 10
 num_examples: 1
 num_intent_labels: 23

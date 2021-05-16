@@ -26,7 +26,7 @@ class BaseAdversarial:
     """
 
     def __init__(
-            self, base_language: str = 'en', attack_language: str = None,
+            self, base_language: str = 'en', attack_language: str = None, perturb_prob: float = 0.5,
             init_model: bool = True, config_path: str = 'config.yaml'
     ):
         self.slot2idx, self.idx2slot, self.intent2idx = create_mapping(read_atis('train', ['en']))
@@ -56,6 +56,7 @@ class BaseAdversarial:
         self.num_examples = 1
 
         self.rng = np.random.default_rng()
+        self.perturb_prob = perturb_prob
 
     def port_model(self, device: str = 'cuda'):
         if device == 'cuda':
@@ -109,14 +110,14 @@ class BaseAdversarial:
                 [
                     self.rng.permutation(len(x[0])) for _ in range(num_objects)
                 ]
-        ).T:  # choosing indexes in random order
+        ).T:
 
             candidates = list(map(self.get_candidates, *(x, y_slots, y_intent, pos, *args)))
 
             losses = self.calculate_loss(*list(zip(*candidates)))
 
             for idx in range(num_objects):
-                if candidates[idx] and losses[idx] > current_loss[idx]:  # if we can "improve" loss
+                if candidates[idx] and losses[idx] > current_loss[idx]:
                     current_loss[idx] = losses[idx]
                     x[idx], y_slots[idx], y_intent[idx] = candidates[idx]
 
@@ -200,11 +201,11 @@ class BaseAdversarial:
         slot_preds = slot_logits.cpu().argmax(dim=-1)[0]
 
         return (
-                   self.idx2intent[intent_true],
-                   self.idx2intent[intent_pred],
-                   list(map(lambda s: self.idx2slot[s.item()], slot_true)),
-                   list(map(lambda s: self.idx2slot[s.item()], slot_preds))
-               )
+            self.idx2intent[intent_true],
+            self.idx2intent[intent_pred],
+            list(map(lambda s: self.idx2slot[s.item()], slot_true)),
+            list(map(lambda s: self.idx2slot[s.item()], slot_preds))
+        )
 
     @torch.no_grad()
     def attack_dataset(self, subset: str = 'test'):
@@ -274,10 +275,10 @@ class Pacifist(BaseAdversarial):
     """
 
     def __init__(
-            self, base_language: str = 'en', attack_language: str = None,
+            self, base_language: str = 'en', attack_language: str = None, perturb_prob: float = 0.5,
             init_model: bool = True, config_path: str = 'config.yaml'
     ):
-        super().__init__(base_language, attack_language, init_model, config_path)
+        super().__init__(base_language, attack_language, perturb_prob, init_model, config_path)
 
         self.num_examples = 1
 
@@ -305,10 +306,10 @@ class AdversarialWordLevel(BaseAdversarial):
     """
 
     def __init__(
-            self, base_language: str = 'en', attack_language: str = None,
+            self, base_language: str = 'en', attack_language: str = None, perturb_prob: float = 0.5,
             init_model: bool = True, config_path: str = 'config.yaml'
     ):
-        super().__init__(base_language, attack_language, init_model, config_path)
+        super().__init__(base_language, attack_language, perturb_prob, init_model, config_path)
 
         self.translations = torch.load('data/atis_test_translations/translations.pt')
 
@@ -351,14 +352,15 @@ class AdversarialAlignments(BaseAdversarial):
     """
 
     def __init__(
-            self, base_language: str = 'en', attack_language: str = None,
+            self, base_language: str = 'en', attack_language: str = None, perturb_prob: float = 0.5,
             init_model: bool = True, config_path: str = 'config.yaml', subset: str = 'test'
     ):
-        super().__init__(base_language, attack_language, init_model, config_path)
+        super().__init__(base_language, attack_language, perturb_prob, init_model, config_path)
 
         self.subset = subset
 
         self.alignments: dict[int, dict[int, str]] = {}
+        self.read_alignments()
 
     def read_alignments(self):
         with open(f'data/atis_{self.subset}_alignment/{self.base_language}_{self.attack_language}.out') as f:
@@ -450,14 +452,12 @@ class RandomAdversarialAlignments(AdversarialAlignments):
     """
 
     def __init__(
-            self, base_language: str = 'en', attack_language: str = None,
-            init_model: bool = True, config_path: str = 'config.yaml', subset: str = 'test',
-            perturbation_probability: float = 0.5, num_examples: int = 1
+            self, base_language: str = 'en', attack_language: str = None, perturb_prob: float = 0.5,
+            init_model: bool = True, config_path: str = 'config.yaml', subset: str = 'test', num_examples: int = 1
     ):
-        super().__init__(base_language, attack_language, init_model, config_path, subset)
+        super().__init__(base_language, attack_language, perturb_prob, init_model, config_path, subset)
 
         self.num_examples = num_examples
-        self.perturbation_probability = perturbation_probability
 
     @torch.no_grad()
     def generate_dataset(self, subset: str = 'test'):
@@ -494,7 +494,7 @@ class RandomAdversarialAlignments(AdversarialAlignments):
         for pos in self.rng.permutation(len(x)):
             candidates = self.get_candidates(x, y_slots, y_intent, pos, args)
 
-            if candidates and self.rng.uniform() > self.perturbation_probability:
+            if candidates and self.rng.uniform() > self.perturb_prob:
                 x, y_slots, y_intent = candidates
 
         return x
