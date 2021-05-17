@@ -21,6 +21,7 @@
         \end{tabular}
     }\caption{Пример объекта из датасета MultiAtis++. На примере представлен объект на английском и немецком языке.}\label{tab:table}
 \end{table}
+
 \parКаждый объект в датасете состоит из предложения, меток слов в BIO формате и интента (Таблица~\eqref{tab:table}).
 Перед началом работы с датасетом мы произвели предварительную очистку —
 убрали из обучающей и тестовой выборок объекты, для которых на любом из семи языков количество слов и количество слотов не совпадали.
@@ -206,28 +207,59 @@
 Перед обучением мультиязычной модели для задачи одновременного заполнения слотов и классификации интентов мы загружаем дообученное тело модели.
 
 \subsection{Результаты}
+
+
 % TODO: решить что кинуть в приложения, а что нет.
 
 \subsubsection{Решение задачи классификации интентов и заполнения слотов}
 
-% TODO: графики обучения моделек.
-% TODO: мы решили задачу всё тип-топ (сравнить с моделькой, что училась только на английском).
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/0}
+    \caption{Сравнение моделей между собой \textbf{на тестовой выборке} датасета MultiAtis++ по метрике \textbf{Intent accuracy}.}\label{fig:figure0}
+\end{figure}
 
-\input{tables/1}
+
+% TODO: мы решили задачу всё тип-топ (сравнить с моделькой, что училась только на английском).
 
 \subsubsection{Качество моделей после адверсариальных атак}
 
-% TODO: мы проатаковали модельки, всё тип-топ (сравнить между собой, показать как качество упало).
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/3}
+    \caption{Сравнение моделей между собой после \textbf{word-level} атаки на тестовую выборку датасета MultiAtis++ по метрике \textbf{Intent accuracy}.}\label{fig:figure3}
+\end{figure}
 
-\input{tables/2}
-\input{tables/3}
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/6}
+    \caption{Сравнение моделей между собой после \textbf{phrase-level} атаки на тестовую выборку датасета MultiAtis++ по метрике \textbf{Intent accuracy}.}\label{fig:figure6}
+\end{figure}
+
+% TODO: мы проатаковали модельки, всё тип-топ (сравнить между собой, показать как качество упало).
 
 \subsubsection{Влияние метода адверсариального предобучения}
 
-% TODO: результаты обучения MLM моделей (вставить графики).
-% TODO: графики обучения для моделек с защитой.
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/9}
+    \caption{Сравнение моделей \textbf{с защитой} между собой \textbf{на тестовой выборке} датасета MultiAtis++ по метрике \textbf{Intent accuracy}.}\label{fig:figure9}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/12}
+    \caption{Сравнение моделей \textbf{с защитой} между собой после \textbf{word-level} атаки на тестовую выборку датасета MultiAtis++ по метрике \textbf{Intent accuracy}.}\label{fig:figure12}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/15}
+    \caption{Сравнение моделей \textbf{с защитой} между собой после \textbf{phrase-level} атаки на тестовую выборку датасета MultiAtis++ по метрике \textbf{Intent accuracy}.}\label{fig:figure15}
+\end{figure}
+
+
+% TODO: результаты обучения MLM моделей
 % TODO: мы обучили и защитили модельки, всё почти тип-топ (сравнить между собой, показать, что где-то качество выросло, где-то упало).
 
-\input{tables/4}
-\input{tables/5}
-\input{tables/6}
+
