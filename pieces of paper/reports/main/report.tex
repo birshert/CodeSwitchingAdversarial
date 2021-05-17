@@ -26,7 +26,7 @@
     urlcolor=blue,
 }
 \urlstyle{same}
-
+\usepackage{appendix}
 \usepackage{algorithm}
 \usepackage{amsfonts}
 \usepackage{algorithmicx}
@@ -57,6 +57,16 @@
 \DeclareMathAlphabet{\pazocal}{OMS}{zplm}{m}{n}
 \newcommand{\unif}{\pazocal{U}}
 \graphicspath{{images/}}
+
+\usepackage{chngcntr}
+\counterwithin{figure}{section}
+\counterwithin{table}{section}
+\counterwithin{algorithm}{section}
+\counterwithin{equation}{section}
+
+\makeatletter
+\renewcommand*{\@Alph}[1]{\ifcase #1\or А\or Б\or В\or Г\or Д\or Е\or Ж\or З\or И\or К\or Л\or М\or Н\or О\or П\or Р\or С\or Т\or У\or Ф\or Х\or Ц\or Ч\or Ш\or Щ\or Э\or Ю\or Я\else\@ctrerr  \fi}
+\makeatother
 
 % Document
 \begin{document}
@@ -104,6 +114,8 @@
 %%%%%%%%%%%%%%%%%%
 %    ВВЕДЕНИЕ    %
 %%%%%%%%%%%%%%%%%%
+
+    \newpage
 
 %%%%%%%%%%%%%%%%%%
 %   ОБЗОР ЛИТРЫ  %
@@ -160,8 +172,8 @@
 %%%%%%%%%%%%%%%%%%
 %   ПРИЛОЖЕНИЕ   %
 %%%%%%%%%%%%%%%%%%
+    \appendix
     \input{appendix}
-
 %%%%%%%%%%%%%%%%%%
 %   ПРИЛОЖЕНИЕ   %
 %%%%%%%%%%%%%%%%%%

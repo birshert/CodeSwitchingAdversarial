@@ -1,8 +1,14 @@
 \section*{Приложения}
 \addcontentsline{toc}{section}{Приложения}
 
-\subsection*{А. Алгоритм замены слотов в атаке}
-\addcontentsline{toc}{subsection}{А. Алгоритм замены слотов в атаке}
+\counterwithin{figure}{subsection}
+\counterwithin{table}{subsection}
+\counterwithin{algorithm}{subsection}
+\counterwithin{equation}{subsection}
+
+\renewcommand{\thesubsection}{\Alph{subsection}}
+
+\subsection{Алгоритм замены слотов в атаке}
 
 \begin{algorithm}
     \caption{Алгоритм замены слотов в атаке}
@@ -26,16 +32,14 @@
 
 \newpage
 
-\subsection*{Б. Примеры адверсариальных атак на модели}
-\addcontentsline{toc}{subsection}{Б. Примеры адверсариальных атак на модели}
+\subsection{Примеры адверсариальных атак на модели}\label{subsec:examples}
 
 \input{tables/9}
 \input{tables/10}
 
 \newpage
 
-\subsection*{В. Графики с результатами экспериментов}
-\addcontentsline{toc}{subsection}{В. Графики с результатами экспериментов}
+\subsection{Графики с результатами экспериментов}\label{subsec:graphs}
 
 \begin{figure}[H]
     \centering
@@ -105,8 +109,7 @@
 
 \newpage
 
-\subsection*{Г. Таблицы с результатами экспериментов}
-\addcontentsline{toc}{subsection}{Г. Таблицы с результатами экспериментов}
+\subsection{Таблицы с результатами экспериментов}\label{subsec:tables}
 
 \input{tables/1}
 \input{tables/2}
