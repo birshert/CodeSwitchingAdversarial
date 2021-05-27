@@ -13,6 +13,7 @@ from transformers import XLMRobertaTokenizerFast
 mapping = {
     'xlm-r': (XLMRobertaModel, XLMRobertaConfig, XLMRobertaTokenizerFast),
     'm-bert': (BertModel, BertConfig, BertTokenizerFast),
+    'bert': (BertModel, BertConfig, BertTokenizerFast)
 }
 
 
@@ -255,9 +256,6 @@ class JointXLMRoberta(BaseJointModel):
     Joint model using XLM-Roberta as backbone (xlm-roberta-base).
     """
 
-    def __init__(self, config: dict):
-        super().__init__(config)
-
     @property
     def __model_name__(self):
         return 'xlm-r'
@@ -272,9 +270,6 @@ class JointMBERT(BaseJointModel):
     Joint model using Multilingual BERT as backbone (bert-base-multilingual-cased).
     """
 
-    def __init__(self, config: dict):
-        super().__init__(config)
-
     @property
     def __model_name__(self):
         return 'm-bert'
@@ -284,13 +279,21 @@ class JointMBERT(BaseJointModel):
         return 'bert-base-multilingual-cased'
 
 
+class JointBERT(BaseJointModel):
+
+    @property
+    def __model_name__(self):
+        return 'bert'
+
+    @property
+    def __parent_name__(self):
+        return 'bert-base-cased'
+
+
 class MLMXLMRoberta(BaseMLMModel):
     """
     Masked language modeling model using XLM-Roberta as backbone (xlm-roberta-base).
     """
-
-    def __init__(self, config: dict):
-        super().__init__(config)
 
     @property
     def __model_name__(self):
@@ -306,9 +309,6 @@ class MLMMBERT(BaseMLMModel):
     Masked language modeling model using Multilingual BERT as backbone (bert-base-multilingual-cased).
     """
 
-    def __init__(self, config: dict):
-        super().__init__(config)
-
     @property
     def __model_name__(self):
         return 'm-bert'
@@ -316,6 +316,17 @@ class MLMMBERT(BaseMLMModel):
     @property
     def __parent_name__(self):
         return 'bert-base-multilingual-cased'
+
+
+class MLMBERT(BaseMLMModel):
+
+    @property
+    def __model_name__(self):
+        return 'bert'
+
+    @property
+    def __parent_name__(self):
+        return 'bert-base-cased'
 
 
 class Classifier(nn.Module):

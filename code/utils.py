@@ -8,17 +8,21 @@ from seqeval.metrics import f1_score
 from seqeval.metrics import precision_score
 from seqeval.metrics import recall_score
 
+from model import JointBERT
 from model import JointMBERT
 from model import JointXLMRoberta
+from model import MLMBERT
 from model import MLMMBERT
 from model import MLMXLMRoberta
 
 
 model_mapping = {
-    'xlm-r': JointXLMRoberta,
+    'bert': JointBERT,
     'm-bert': JointMBERT,
+    'xlm-r': JointXLMRoberta,
+    'mlm bert': MLMBERT,
+    'mlm m-bert': MLMMBERT,
     'mlm xlm-r': MLMXLMRoberta,
-    'mlm m-bert': MLMMBERT
 }
 
 

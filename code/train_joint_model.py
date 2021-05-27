@@ -102,7 +102,13 @@ def main(config_path: str = 'config.yaml'):
 
     log = config['log']
 
-    run_name = config['model_name'] + ' en ' * config['only_english'] + ' adv' * config['load_adv_pretrained']
+    run_name = [config['model_name']]
+    if config['only_english']:
+        run_name += ['en']
+    if config['load_adv_pretrained']:
+        run_name += ['adv']
+
+    run_name = ' '.join(run_name)
 
     wandb.init(
         project='diploma',
@@ -181,4 +187,7 @@ def main(config_path: str = 'config.yaml'):
 
 
 if __name__ == '__main__':
-    main(sys.argv[-1])
+    if len(sys.argv) > 1:
+        main(sys.argv[-1])
+    else:
+        main()
