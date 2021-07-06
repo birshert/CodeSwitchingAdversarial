@@ -14,32 +14,6 @@ from utils import load_config
 from utils import tokenize_and_preserve_labels
 
 
-def read_atis(subset: str, languages: list = None):
-    """
-    Reads atis dataset (subset) for specified languages.
-    :param subset: atis subset (train, test, adversarial).
-    :param languages: list of languages to read atis.
-    :return: pandas DataFrame.
-    """
-    if languages is None:
-        languages = load_config()['languages']
-
-    result = pd.DataFrame()
-
-    for language in languages:
-        df = pd.read_csv(
-            f'data/atis/{subset}/{subset}_{language}.csv',
-            index_col=0
-        )
-        df['language'] = language
-        df['uuid'] = np.arange(len(df))
-        result = pd.concat((result, df))
-
-    result.reset_index(drop=True, inplace=True)
-
-    return result
-
-
 class CustomJointDataset(Dataset):
     """
     Dataset for joint intent classification and slot-filling task.
@@ -153,6 +127,32 @@ class MLMCollator:
         return inputs, labels
 
 
+def read_atis(subset: str, languages: list = None):
+    """
+    Reads atis dataset (subset) for specified languages.
+    :param subset: atis subset (train, test, adversarial).
+    :param languages: list of languages to read atis.
+    :return: pandas DataFrame.
+    """
+    if languages is None:
+        languages = load_config()['languages']
+
+    result = pd.DataFrame()
+
+    for language in languages:
+        df = pd.read_csv(
+            f'data/atis/{subset}/{subset}_{language}.csv',
+            index_col=0
+        )
+        df['language'] = language
+        df['uuid'] = np.arange(len(df))
+        result = pd.concat((result, df))
+
+    result.reset_index(drop=True, inplace=True)
+
+    return result
+
+
 def prepare_joint_datasets(config, model: BaseJointModel):
     """
     Prepares datasets, collator and some misc for joint intent classification and slot-filling task.
@@ -241,7 +241,7 @@ def prepare_mlm_datasets(config, model: BaseMLMModel):
 
         return train_dataset, test_dataset, collator
 
-    data = read_atis('adversarial', ['en'])
+    data = read_atis(config['dataset'], ['en'])
     uuids = data['uuid']
 
     uuids_train, uuids_test = train_test_split(uuids, test_size=0.1)

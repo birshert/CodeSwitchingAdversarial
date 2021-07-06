@@ -13,6 +13,7 @@ from transformers import AdamW
 from dataset import prepare_joint_datasets
 from utils import _set_seed
 from utils import compute_metrics
+from utils import get_cuda_device
 from utils import load_config
 from utils import model_mapping
 from utils import set_global_logging_level
@@ -89,14 +90,12 @@ def joint_evaluate(model, dataloader, device, p_bar=None, **kwargs):
 def main(config_path: str = 'config.yaml'):
     config = load_config(config_path)
 
-    cuda_device = min(int('m-bert' in config['model_name']), torch.cuda.device_count() - 1)
-
-    device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
+    device = get_cuda_device(config)
     _set_seed(SEED)
 
     print(
         'Using device {}'.format(
-            torch.cuda.get_device_name() + f':{cuda_device}' if torch.cuda.is_available() else 'cpu'
+            torch.cuda.get_device_name() + f':{device}' if torch.cuda.is_available() else 'cpu'
         )
     )
 

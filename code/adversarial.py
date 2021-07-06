@@ -13,6 +13,7 @@ from dataset import JointCollator
 from dataset import read_atis
 from train_joint_model import joint_evaluate
 from utils import create_mapping
+from utils import get_cuda_device
 from utils import load_config
 from utils import model_mapping
 from utils import tokenize_and_preserve_labels
@@ -35,9 +36,7 @@ class BaseAdversarial:
 
         self.config = load_config(config_path)
 
-        cuda_device = min(int('m-bert' in self.config['model_name']), torch.cuda.device_count() - 1)
-
-        self.device = torch.device(f'cuda:{cuda_device}' if torch.cuda.is_available() else 'cpu')
+        self.device = get_cuda_device(self.config)
 
         if init_model:
             self.model = model_mapping[self.config['model_name']](config=self.config)
@@ -251,8 +250,8 @@ class BaseAdversarial:
 
                         progress_bar.update(len(i))
 
-        data = CustomJointDataset(data, self.model.tokenizer, self.slot2idx)
-        loader = DataLoader(data, batch_size=8, drop_last=False, collate_fn=JointCollator(self.slot2idx))
+        joint_data = CustomJointDataset(data, self.model.tokenizer, self.slot2idx)
+        loader = DataLoader(joint_data, batch_size=8, drop_last=False, collate_fn=JointCollator(self.slot2idx))
 
         results = joint_evaluate(
             self.model, loader, self.device, fp_16=True,

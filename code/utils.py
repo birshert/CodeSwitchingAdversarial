@@ -108,7 +108,7 @@ def create_mapping(df):
 
 def load_config(config_path: str = 'config.yaml'):
     with open(config_path, 'r') as f:
-        return yaml.load(f, Loader=yaml.FullLoader)
+        return yaml.load(f, Loader=yaml.SafeLoader)
 
 
 def save_config(config, config_path: str = 'config.yaml'):
@@ -116,9 +116,13 @@ def save_config(config, config_path: str = 'config.yaml'):
         yaml.dump(config, f, Dumper=yaml.SafeDumper)
 
 
+def get_cuda_device(config: dict) -> torch.device:
+    return torch.device(f'cuda:{min(int("m-bert" in config["model_name"]), torch.cuda.device_count() - 1)}')
+
+
 def _set_seed(seed):
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.benchmark = True
+    torch.use_deterministic_algorithms(True)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
