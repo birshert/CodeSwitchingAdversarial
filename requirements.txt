@@ -2,7 +2,7 @@
 
 transformers
 numpy
-torch==1.9.0+cu111
+torch==1.9.0
 tqdm
 wandb
 seqeval
