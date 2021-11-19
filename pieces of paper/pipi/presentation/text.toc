@@ -1,7 +1,0 @@
-\babel@toc {english}{}
-\beamer@sectionintoc {1}{INTRODUCTION}{2}{0}{1}
-\beamer@sectionintoc {2}{METHODS}{4}{0}{2}
-\beamer@sectionintoc {3}{RESULTS ANTICIPATED}{9}{0}{3}
-\beamer@sectionintoc {4}{CONCLUSION}{10}{0}{4}
-\beamer@subsectionintoc {4}{1}{That's all}{11}{0}{4}
-\beamer@sectionintoc {5}{REFERENCES}{12}{0}{5}
