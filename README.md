@@ -7,3 +7,15 @@ Practical needs of developing task-oriented dialogue assistants require the abil
 Our work adopts recognized methods to generate plausible and naturally-sounding code-switched utterances and uses them to create a synthetic code-switched test set. Based on experiments, we report that the state-of-the-art NLU models are unable to handle code-switching. At worst, the performance, evaluated by semantic accuracy, drops as low as 15% from 80% across languages. Further we show, that pre-training on synthetic code-mixed data helps to maintain performance on the proposed test set at a comparable level with monolingual data. Finally, we analyze different language pairs and show that the closer the languages are, the better the NLU model handles their alternation. This is in line with the common understanding of how multilingual models conduct transferring  between languages.
 
 Keywords - intent recognition, slot filling, code-mixing, code-switching, multilingual models.
+
+## Usage examples
+
+First you need to get the [dataset](https://catalog.ldc.upenn.edu/LDC2021T04) and put it into the `code/data/atis` folder. Otherwise, you can use cached versions of it prepared by us.
+
+To create translations run `code/make_translations.ipynb`.
+To create alignments run `code/make_alignments.ipynb`.
+To create adversarial dataset run `code/make_adversarial_dataset.ipynb`.
+
+One can run `code/run_m-bert.ipynb` and `code/run_xlm-r.ipynb` to train and attack different models described in the paper.
+
+To analyze results you can check either `code/results` folder or run `code/analyze_results.ipynb`.
